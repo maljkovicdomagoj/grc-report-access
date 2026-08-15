@@ -3,9 +3,14 @@
        #si-email  #si-password  #si-submit  #si-google
        #si-msg  = an empty text element for status messages -->
 <script>
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   const $ = id => document.getElementById(id);
   const msg = t => { const m = $('si-msg'); if (m) m.textContent = t; };
+
+  // Show current login status on page load.
+  const { data: { session } } = await window.sb.auth.getSession();
+  console.log('session', session);
+  msg(session ? 'Logged in as ' + session.user.email : 'Not logged in.');
 
   $('si-submit')?.addEventListener('click', async (e) => {
     e.preventDefault();
