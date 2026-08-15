@@ -1,0 +1,10 @@
+{
+  "name": "grc-report-access",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Custom membership (auth + Stripe subscriptions + article gating) for GRC Report, deployed as Vercel serverless functions.",
+  "dependencies": {
+    "@supabase/supabase-js": "^2",
+    "stripe": "^17"
+  }
+}
