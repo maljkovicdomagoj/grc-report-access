@@ -1,0 +1,43 @@
+<!-- EXPRESS CHECKOUT RENDER TEST — paste into an Embed, below the sign-up form.
+     Goal: confirm the black Apple Pay button shows up. It does NOT charge yet.
+
+     Apple Pay only renders when ALL of these are true:
+       - served over HTTPS on a domain registered in Stripe -> Settings ->
+         Payment method domains (grc-report-v-1.webflow.io is registered;
+         note: the domain list is SEPARATE per test/live mode)
+       - opened in Safari (Mac/iPhone) with a card in Apple Wallet
+         (Chrome shows Google Pay instead; localhost/Artifact shows nothing)
+     Use your Stripe TEST publishable key below. -->
+<div id="express-checkout"></div>
+<div id="payment-element" style="margin-top:16px;"></div>
+<div id="checkout-msg" style="margin-top:12px;font:14px/1.4 sans-serif;"></div>
+
+<script src="https://js.stripe.com/v3/"></script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const stripe = Stripe("pk_test_YOUR_PUBLISHABLE_KEY");
+
+  // Deferred mode: renders the wallet buttons + card form with no server call.
+  // Enough to SEE the button. Real subscription/charge is wired in Phase 2.
+  const elements = stripe.elements({ mode: 'payment', amount: 2000, currency: 'usd' });
+
+  // Apple Pay button ABOVE the card form, per Apple's guidelines.
+  const express = elements.create('expressCheckout', {
+    buttonTheme: { applePay: 'black' },
+    buttonHeight: 48
+  });
+  express.mount('#express-checkout');
+
+  const payment = elements.create('payment');
+  payment.mount('#payment-element');
+
+  const msg = t => { document.getElementById('checkout-msg').textContent = t; };
+
+  express.on('ready', (e) => {
+    const m = e.availablePaymentMethods;
+    msg(m ? 'Wallet ready: ' + Object.keys(m).filter(k => m[k]).join(', ')
+          : 'No wallet on this device/browser — open in Safari with a card in Apple Wallet.');
+  });
+  express.on('click', () => msg('Wallet button clicked — charging is wired in Phase 2.'));
+});
+</script>
