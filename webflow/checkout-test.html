@@ -1,43 +1,68 @@
-<!-- EXPRESS CHECKOUT RENDER TEST — paste into an Embed, below the sign-up form.
-     Goal: confirm the black Apple Pay button shows up. It does NOT charge yet.
+<!-- EXPRESS CHECKOUT TEST — Apple Pay button + "Pay another way" card fallback.
+     Paste into an Embed. Does NOT charge yet (charging = Phase 2 /api).
 
-     Apple Pay only renders when ALL of these are true:
-       - served over HTTPS on a domain registered in Stripe -> Settings ->
-         Payment method domains (grc-report-v-1.webflow.io is registered;
-         note: the domain list is SEPARATE per test/live mode)
-       - opened in Safari (Mac/iPhone) with a card in Apple Wallet
-         (Chrome shows Google Pay instead; localhost/Artifact shows nothing)
-     Use your Stripe TEST publishable key below. -->
+     Optional plan cards: build 3 cards in Webflow, put on each card
+       data-plan  data-amount="3000"   (amount in cents; 3000 = $30.00)
+     Clicking a card selects it and updates the total. Style .is-selected yourself.
+
+     Apple Pay only renders on a domain registered in Stripe -> Settings ->
+     Payment method domains (separate per test/live). For a device WITHOUT a card
+     in Apple Wallet the button is forced on below via applePay:'always' (test only). -->
+
 <div id="express-checkout"></div>
-<div id="payment-element" style="margin-top:16px;"></div>
+<a href="#" id="pay-another-way" style="display:inline-block;margin-top:12px;">Pay another way</a>
+<div id="payment-element" style="display:none;margin-top:16px;"></div>
 <div id="checkout-msg" style="margin-top:12px;font:14px/1.4 sans-serif;"></div>
 
 <script src="https://js.stripe.com/v3/"></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-  const msg = t => { const el = document.getElementById('checkout-msg'); if (el) el.textContent = t; };
+  const $ = id => document.getElementById(id);
+  const msg = t => { if ($('checkout-msg')) $('checkout-msg').textContent = t; };
   try {
     const stripe = Stripe("pk_test_YOUR_PUBLISHABLE_KEY");
 
-    // Deferred mode: renders the wallet buttons + card form with no server call.
-    // Enough to SEE the button. Real subscription/charge is wired in Phase 2.
-    const elements = stripe.elements({ mode: 'payment', amount: 2000, currency: 'usd' });
+    // Default = first plan card's amount, or $30 if there are no cards yet.
+    const cards = [...document.querySelectorAll('[data-plan]')];
+    let amount = cards.length ? +cards[0].dataset.amount : 3000;
 
-    // Apple Pay button ABOVE the card form, per Apple's guidelines.
+    const elements = stripe.elements({ mode: 'payment', amount, currency: 'usd' });
+
     const express = elements.create('expressCheckout', {
       buttonTheme: { applePay: 'black' },
-      buttonHeight: 48
+      buttonHeight: 48,
+      paymentMethods: {
+        applePay: 'always',   // test: show even without a saved card. Prod: 'auto'
+        googlePay: 'auto',
+        link: 'never',        // <- removes the Link button
+        paypal: 'never',
+        amazonPay: 'never'
+      }
     });
     express.mount('#express-checkout');
-    elements.create('payment').mount('#payment-element');
+
+    // Card fallback stays hidden until "Pay another way".
+    const payment = elements.create('payment');
+    payment.mount('#payment-element');
+    $('pay-another-way').addEventListener('click', (e) => {
+      e.preventDefault();
+      $('payment-element').style.display = 'block';
+      e.target.style.display = 'none';
+    });
+
+    // Plan cards: select + update the total.
+    cards.forEach(card => card.addEventListener('click', () => {
+      cards.forEach(c => c.classList.remove('is-selected'));
+      card.classList.add('is-selected');
+      amount = +card.dataset.amount;
+      elements.update({ amount });   // TODO Phase 2: also remember card.dataset.price for /api
+    }));
 
     express.on('ready', (e) => {
       const m = e.availablePaymentMethods;
-      const avail = m ? Object.keys(m).filter(k => m[k]) : [];
       console.log('availablePaymentMethods', m);
-      msg(avail.length
-        ? 'Wallet available: ' + avail.join(', ')
-        : 'No wallet available — needs Safari + a card in Apple Wallet, on the registered domain.');
+      const avail = m ? Object.keys(m).filter(k => m[k]) : [];
+      msg(avail.length ? 'Wallet available: ' + avail.join(', ') : 'No wallet buttons available.');
     });
     express.on('click', () => msg('Wallet clicked — charging comes in Phase 2.'));
   } catch (err) {
