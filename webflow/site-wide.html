@@ -1,0 +1,29 @@
+<!-- GRC Report auth — SITE-WIDE.
+     Webflow: Site Settings → Custom Code → Header Code. Loads on every page.
+     Fill in the two values below (Supabase → Project Settings → API). Both are public. -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  const SUPABASE_URL = "https://YOUR-PROJECT.supabase.co";
+  const SUPABASE_ANON_KEY = "YOUR-ANON-KEY";
+  window.sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // Navbar visibility — reuses the existing Outseta attributes, our logic drives them.
+  // data-o-anonymous     -> shown when logged OUT  (Access Log In)
+  // data-o-authenticated -> shown when logged IN   (Access Dashboard)
+  async function refreshAuthUI() {
+    const { data: { session } } = await window.sb.auth.getSession();
+    const authed = !!session;
+    document.querySelectorAll('[data-o-anonymous]').forEach(el => el.style.display = authed ? 'none' : '');
+    document.querySelectorAll('[data-o-authenticated]').forEach(el => el.style.display = authed ? '' : 'none');
+  }
+  window.sb.auth.onAuthStateChange(refreshAuthUI);
+  document.addEventListener('DOMContentLoaded', refreshAuthUI);
+
+  // Logout — put data-auth-logout on any button/link.
+  document.addEventListener('click', async (e) => {
+    if (!e.target.closest('[data-auth-logout]')) return;
+    e.preventDefault();
+    await window.sb.auth.signOut();
+    window.location.href = '/access/sign-in';
+  });
+</script>

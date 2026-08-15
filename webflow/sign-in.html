@@ -1,0 +1,28 @@
+<!-- Page /access/sign-in — paste into an Embed element on the page.
+     Set these IDs on the Webflow inputs/buttons:
+       #si-email  #si-password  #si-submit  #si-google
+       #si-msg  = an empty text element for status messages -->
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const $ = id => document.getElementById(id);
+  const msg = t => { const m = $('si-msg'); if (m) m.textContent = t; };
+
+  $('si-submit')?.addEventListener('click', async (e) => {
+    e.preventDefault();
+    const { error } = await window.sb.auth.signInWithPassword({
+      email: $('si-email').value.trim(),
+      password: $('si-password').value
+    });
+    if (error) return msg(error.message);
+    window.location.href = '/dashboard/home';
+  });
+
+  $('si-google')?.addEventListener('click', async (e) => {
+    e.preventDefault();
+    await window.sb.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin + '/dashboard/home' }
+    });
+  });
+});
+</script>

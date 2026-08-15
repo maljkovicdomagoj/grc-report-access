@@ -1,0 +1,34 @@
+<!-- Page /access/sign-up — paste into an Embed element on the page.
+     Set these IDs on the Webflow inputs/buttons:
+       #su-first  #su-last  #su-email  #su-password  #su-submit  #su-google
+       #su-msg  = an empty text element for status messages -->
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const $ = id => document.getElementById(id);
+  const msg = t => { const m = $('su-msg'); if (m) m.textContent = t; };
+
+  $('su-submit')?.addEventListener('click', async (e) => {
+    e.preventDefault();
+    const { error } = await window.sb.auth.signUp({
+      email: $('su-email').value.trim(),
+      password: $('su-password').value,
+      options: {
+        data: {
+          first_name: $('su-first')?.value.trim(),
+          last_name:  $('su-last')?.value.trim()
+        },
+        emailRedirectTo: window.location.origin + '/access/sign-in'
+      }
+    });
+    msg(error ? error.message : 'Check your email to confirm your account.');
+  });
+
+  $('su-google')?.addEventListener('click', async (e) => {
+    e.preventDefault();
+    await window.sb.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin + '/dashboard/home' }
+    });
+  });
+});
+</script>
