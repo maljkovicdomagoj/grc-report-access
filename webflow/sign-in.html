@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const msg = t => { const m = $('si-msg'); if (m) m.textContent = t; };
 
   // Show current login status on page load.
+  if (!window.sb) { msg('Supabase not loaded — is the site-wide code on this page?'); return; }
   const { data: { session } } = await window.sb.auth.getSession();
   console.log('session', session);
   msg(session ? 'Logged in as ' + session.user.email : 'Not logged in.');
