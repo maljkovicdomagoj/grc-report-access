@@ -1,19 +1,40 @@
-<!-- Set NEW password — paste into an Embed on a NEW page at /access/reset-password.
-     The email reset link lands here; the site-wide client picks up the recovery
-     token from the URL automatically, so updateUser() can set the new password.
+<!-- Set NEW password — paste into an Embed on the page /access/reset-password.
+     The email reset link lands here; the site-wide client establishes a temporary
+     recovery session (from the URL), then updateUser() sets the new password.
      IDs:  #np-password  #np-submit  #np-msg (empty text element) -->
 <script>
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   const $ = id => document.getElementById(id);
   const msg = t => { const m = $('np-msg'); if (m) m.textContent = t; };
   if (!window.sb) { msg('Supabase not loaded — is the site-wide code on this page?'); return; }
 
+  const hash = new URLSearchParams(location.hash.slice(1));
+  const query = new URLSearchParams(location.search);
+
+  // Surface an error the reset link itself may carry (expired / not allowlisted).
+  const urlErr = hash.get('error_description') || query.get('error_description');
+  if (urlErr) msg('Reset link problem: ' + urlErr + ' — request a new link.');
+
+  // Ensure a recovery session exists. Hash-token links are picked up automatically
+  // by the client; PKCE-style links come back as ?code=... and need exchanging.
+  async function ensureSession() {
+    if ((await window.sb.auth.getSession()).data.session) return true;
+    const code = query.get('code');
+    if (code) return !(await window.sb.auth.exchangeCodeForSession(code)).error;
+    return false;
+  }
+  await ensureSession();
+
   $('np-submit')?.addEventListener('click', async (e) => {
     e.preventDefault();
+    if (!(await ensureSession())) {
+      return msg('No active reset session. Open this page from the email link, and make sure ' +
+                 '/access/reset-password is in Supabase → Redirect URLs.');
+    }
     const { error } = await window.sb.auth.updateUser({ password: $('np-password').value });
     if (error) return msg(error.message);
     msg('Password updated. Redirecting…');
-    setTimeout(() => window.location.href = '/access/sign-in', 1500);
+    setTimeout(() => location.href = '/access/sign-in', 1500);
   });
 });
 </script>
