@@ -27,19 +27,30 @@ and [README.md](README.md) for setup.
 - Navbar: reuses the existing `data-o-anonymous` / `data-o-authenticated`
   attributes; our code toggles them by session state.
 
+## Deferred (do later, agreed)
+- **Google login** — buttons are wired in `sign-in`/`sign-up`; still need to
+  configure the Google provider (Client ID/Secret) in Supabase → Authentication →
+  Providers (and a Google Cloud OAuth client) before it works.
+- **Email template look** — restyle the Supabase auth emails (confirm / reset) to
+  match GRC Report instead of the default template (Authentication → Emails).
+
 ## In progress / needs verification
-- **Google OAuth** — wired in code; needs the Google provider (Client ID/Secret)
-  configured in Supabase → Authentication → Providers to actually work.
 - **Express Checkout / Apple Pay test** — [webflow/checkout-test.html](webflow/checkout-test.html)
   renders the black Apple Pay button + card fallback (Link disabled, plan-card
   hook, "Pay another way"). Verify by: registering the domain in Stripe → Payment
   method domains (test mode), setting the test publishable key, publishing, and
   opening in Safari. Does NOT charge yet.
 
+## Phase 2 — Payments (in progress)
+- Server ✅ written: [api/create-subscription.js](api/create-subscription.js)
+  (incomplete subscription → client secret) and
+  [api/stripe-webhook.js](api/stripe-webhook.js) (only writer of `subscriptions`).
+  Shared helpers in [api/_lib.js](api/_lib.js).
+- Still to do: create Stripe products/prices, add Stripe env vars in Vercel,
+  register the webhook endpoint, then the **frontend confirm flow** (Express
+  Checkout + Payment Element confirming the returned client secret).
+
 ## Not started
-- **Phase 2 — Payments:** `/api/create-subscription` (server-side subscription,
-  `payment_behavior: 'default_incomplete'`), confirm on frontend,
-  `/api/stripe-webhook` writing to `subscriptions`.
 - **Phase 3 — Gating:** CMS `preview`/`full_body` split, `/api/article`, dashboard
   route guard.
 - **Phase 4 — Member area:** Stripe billing portal, account settings, bookmarks,
@@ -49,7 +60,7 @@ and [README.md](README.md) for setup.
 ## Config still to do
 - Supabase Auth → URL Configuration: add `/access/reset-password` (and prod
   domain) to the redirect allowlist.
-- Custom SMTP for production auth emails (launch task — default mailer is
-  dev-only, heavily rate-limited).
+- ~~Custom SMTP for auth emails~~ ✅ done — Resend, sending from
+  `noreply@stack.grcreport.com` (removed the default-mailer rate limit).
 - Stripe + Webflow env vars in Vercel (added when Phase 2 / 3 start).
 - Register the production domain in Stripe → Payment method domains before launch.
