@@ -1,0 +1,19 @@
+<!-- Set NEW password — paste into an Embed on a NEW page at /access/reset-password.
+     The email reset link lands here; the site-wide client picks up the recovery
+     token from the URL automatically, so updateUser() can set the new password.
+     IDs:  #np-password  #np-submit  #np-msg (empty text element) -->
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const $ = id => document.getElementById(id);
+  const msg = t => { const m = $('np-msg'); if (m) m.textContent = t; };
+  if (!window.sb) { msg('Supabase not loaded — is the site-wide code on this page?'); return; }
+
+  $('np-submit')?.addEventListener('click', async (e) => {
+    e.preventDefault();
+    const { error } = await window.sb.auth.updateUser({ password: $('np-password').value });
+    if (error) return msg(error.message);
+    msg('Password updated. Redirecting…');
+    setTimeout(() => window.location.href = '/access/sign-in', 1500);
+  });
+});
+</script>

@@ -1,0 +1,18 @@
+<!-- Password reset REQUEST — paste into an Embed on /access/sign-in
+     (e.g. under a "Forgot password?" toggle) or on its own page.
+     IDs:  #pr-email  #pr-submit  #pr-msg (empty text element) -->
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const $ = id => document.getElementById(id);
+  const msg = t => { const m = $('pr-msg'); if (m) m.textContent = t; };
+  if (!window.sb) { msg('Supabase not loaded — is the site-wide code on this page?'); return; }
+
+  $('pr-submit')?.addEventListener('click', async (e) => {
+    e.preventDefault();
+    const { error } = await window.sb.auth.resetPasswordForEmail($('pr-email').value.trim(), {
+      redirectTo: window.location.origin + '/access/reset-password'
+    });
+    msg(error ? error.message : 'Check your email for the reset link.');
+  });
+});
+</script>
