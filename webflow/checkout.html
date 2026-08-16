@@ -1,0 +1,95 @@
+<!-- CHECKOUT — real subscription purchase. Paste into an Embed on the checkout
+     page (e.g. /access/sign-up below the form, or /access/access-checkout).
+     The user must be SIGNED IN (we send their JWT to the API).
+
+     FILL IN below:
+       API_BASE   = your Vercel domain
+       STRIPE_PK  = your Stripe TEST publishable key
+       PLANS.*.amount = each plan price IN CENTS (must be > 0, match the Stripe price)
+
+     Plan cards (optional): build in Webflow, add data-plan="monthly" or
+     data-plan="yearly" to each card; style .is-selected yourself. -->
+
+<div id="express-checkout"></div>
+<a href="#" id="pay-another-way" style="display:inline-block;margin-top:12px;">Pay with card</a>
+<div id="payment-element" style="display:none;margin-top:16px;"></div>
+<button id="pay-btn" style="display:none;margin-top:12px;">Subscribe</button>
+<div id="checkout-msg" style="margin-top:12px;font:14px/1.4 sans-serif;"></div>
+
+<script src="https://js.stripe.com/v3/"></script>
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+  const $ = id => document.getElementById(id);
+  const msg = t => { if ($('checkout-msg')) $('checkout-msg').textContent = t; };
+
+  const API_BASE  = "https://YOUR-PROJECT.vercel.app";      // <- your Vercel domain
+  const STRIPE_PK = "pk_test_YOUR_PUBLISHABLE_KEY";         // <- Stripe test publishable key
+  const CURRENCY  = 'usd';                                  // must match the Stripe price
+  const PLANS = {
+    monthly: { price: 'price_1TrZO4GL6M8eL6LJIDd36JoP', amount: 0 /* TODO cents, e.g. 1500 */ },
+    yearly:  { price: 'price_1Ts56pGL6M8eL6LJuhmz4Cgd', amount: 0 /* TODO cents, e.g. 15000 */ }
+  };
+
+  if (!window.sb) return msg('Supabase not loaded — is the site-wide code on this page?');
+  if (!(await window.sb.auth.getSession()).data.session) return msg('Please sign in before subscribing.');
+
+  const stripe = Stripe(STRIPE_PK);
+  const cards = [...document.querySelectorAll('[data-plan]')];
+  let selected = PLANS[cards[0]?.dataset.plan] || PLANS.monthly;
+
+  const elements = stripe.elements({ mode: 'subscription', amount: selected.amount, currency: CURRENCY });
+
+  const express = elements.create('expressCheckout', {
+    buttonTheme: { applePay: 'black' },
+    buttonHeight: 48,
+    paymentMethods: { applePay: 'auto', googlePay: 'auto', link: 'never', paypal: 'never', amazonPay: 'never' }
+  });
+  express.mount('#express-checkout');
+  elements.create('payment').mount('#payment-element');
+
+  // Reveal the card form on demand.
+  $('pay-another-way').addEventListener('click', (e) => {
+    e.preventDefault();
+    $('payment-element').style.display = 'block';
+    $('pay-btn').style.display = 'inline-block';
+    e.target.style.display = 'none';
+  });
+
+  // Plan selection updates the total shown in the wallet sheet.
+  cards.forEach(card => card.addEventListener('click', () => {
+    const plan = PLANS[card.dataset.plan];
+    if (!plan) return;
+    selected = plan;
+    cards.forEach(c => c.classList.remove('is-selected'));
+    card.classList.add('is-selected');
+    elements.update({ amount: selected.amount });
+  }));
+
+  async function subscribe() {
+    msg('Processing…');
+    const { error: submitError } = await elements.submit();
+    if (submitError) return msg(submitError.message);
+
+    const { data: { session } } = await window.sb.auth.getSession();  // fresh token
+    if (!session) return msg('Please sign in before subscribing.');
+
+    const res = await fetch(API_BASE + '/api/create-subscription', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: 'Bearer ' + session.access_token },
+      body: JSON.stringify({ priceId: selected.price })
+    });
+    const data = await res.json();
+    if (!res.ok) return msg(data.error || 'Could not start checkout.');
+
+    const { error } = await stripe.confirmPayment({
+      elements,
+      clientSecret: data.clientSecret,
+      confirmParams: { return_url: window.location.origin + '/dashboard/home' }
+    });
+    if (error) msg(error.message);   // on success the browser redirects to return_url
+  }
+
+  express.on('confirm', subscribe);
+  $('pay-btn').addEventListener('click', subscribe);
+});
+</script>

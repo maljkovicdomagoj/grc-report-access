@@ -1,16 +1,18 @@
 // POST /api/create-subscription  { priceId }  (Authorization: Bearer <supabase jwt>)
 // Creates an incomplete subscription and returns the client secret to confirm on
 // the frontend. The webhook is what actually writes to the subscriptions table.
-import { stripe, supabaseAdmin, getUser, json } from './_lib.js';
+import { stripe, supabaseAdmin, getUser, json, corsHeaders } from './_lib.js';
 
 export default async function handler(request) {
-  if (request.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
+  const cors = corsHeaders(request);
+  if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
+  if (request.method !== 'POST') return json({ error: 'method_not_allowed' }, 405, cors);
 
   const user = await getUser(request);
-  if (!user) return json({ error: 'unauthorized' }, 401);
+  if (!user) return json({ error: 'unauthorized' }, 401, cors);
 
   const { priceId } = await request.json().catch(() => ({}));
-  if (!priceId) return json({ error: 'missing_priceId' }, 400);
+  if (!priceId) return json({ error: 'missing_priceId' }, 400, cors);
 
   // Reuse the customer stored on the profile, or create one and cache it.
   const { data: profile } = await supabaseAdmin
@@ -39,7 +41,7 @@ export default async function handler(request) {
   const clientSecret = sub.latest_invoice?.confirmation_secret?.client_secret;
   if (!clientSecret) {
     return json({ error: 'no_client_secret',
-      hint: 'account API version must expose invoice.confirmation_secret' }, 500);
+      hint: 'account API version must expose invoice.confirmation_secret' }, 500, cors);
   }
-  return json({ subscriptionId: sub.id, clientSecret });
+  return json({ subscriptionId: sub.id, clientSecret }, 200, cors);
 }

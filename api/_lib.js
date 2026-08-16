@@ -19,5 +19,21 @@ export async function getUser(request) {
   return error ? null : data.user;
 }
 
-export const json = (obj, status = 200) =>
-  new Response(JSON.stringify(obj), { status, headers: { 'content-type': 'application/json' } });
+// The frontend lives on the Webflow domain; the API on Vercel. Allow those origins.
+const ALLOWED_ORIGINS = [
+  'https://grc-report-v-1.webflow.io',
+  'https://grcreport.com',
+  'https://www.grcreport.com'
+];
+export function corsHeaders(request) {
+  const origin = request.headers.get('origin');
+  const allow = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  return {
+    'access-control-allow-origin': allow,
+    'access-control-allow-methods': 'POST, OPTIONS',
+    'access-control-allow-headers': 'authorization, content-type'
+  };
+}
+
+export const json = (obj, status = 200, headers = {}) =>
+  new Response(JSON.stringify(obj), { status, headers: { 'content-type': 'application/json', ...headers } });

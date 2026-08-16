@@ -42,13 +42,16 @@ and [README.md](README.md) for setup.
   opening in Safari. Does NOT charge yet.
 
 ## Phase 2 — Payments (in progress)
-- Server ✅ written: [api/create-subscription.js](api/create-subscription.js)
-  (incomplete subscription → client secret) and
+- Server ✅: [api/create-subscription.js](api/create-subscription.js) (incomplete
+  subscription → client secret, CORS for the Webflow origin) and
   [api/stripe-webhook.js](api/stripe-webhook.js) (only writer of `subscriptions`).
-  Shared helpers in [api/_lib.js](api/_lib.js).
-- Still to do: create Stripe products/prices, add Stripe env vars in Vercel,
-  register the webhook endpoint, then the **frontend confirm flow** (Express
-  Checkout + Payment Element confirming the returned client secret).
+  Shared helpers + CORS in [api/_lib.js](api/_lib.js).
+- Frontend ✅: [webflow/checkout.html](webflow/checkout.html) — Express Checkout
+  (black Apple Pay) + card fallback + plan cards, confirms the client secret.
+  Needs: Vercel domain, publishable key, and the two plan amounts filled in.
+- Webhook verified in Stripe (test event → 200).
+- Left to verify: a real test-card subscription end-to-end (row lands in
+  `subscriptions` with the right `user_id`).
 
 ## Not started
 - **Phase 3 — Gating:** CMS `preview`/`full_body` split, `/api/article`, dashboard
