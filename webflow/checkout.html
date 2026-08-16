@@ -1,14 +1,13 @@
-<!-- CHECKOUT — real subscription purchase. Paste into an Embed on the checkout
-     page (e.g. /access/sign-up below the form, or /access/access-checkout).
-     The user must be SIGNED IN (we send their JWT to the API).
+<!-- SIGN-UP + CHECKOUT (single page) — paste into an Embed on /access/sign-up,
+     BELOW your registration form. On pay we create the account (email confirmation
+     must be OFF so signUp returns a session), then charge — one click.
 
-     FILL IN below:
-       API_BASE   = your Vercel domain
-       STRIPE_PK  = your Stripe TEST publishable key
-       PLANS.*.amount = each plan price IN CENTS (must be > 0, match the Stripe price)
+     The registration form must expose these input IDs (no separate signup button
+     needed on this page — this embed handles it):
+       #su-first  #su-last  #su-email  #su-password
 
-     Plan cards (optional): build in Webflow, add data-plan="monthly" or
-     data-plan="yearly" to each card; style .is-selected yourself. -->
+     FILL IN below: API_BASE, STRIPE_PK, and each plan amount in cents.
+     Plan cards (optional): add data-plan="monthly" / data-plan="yearly". -->
 
 <div id="express-checkout"></div>
 <a href="#" id="pay-another-way" style="display:inline-block;margin-top:12px;">Pay with card</a>
@@ -22,16 +21,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   const $ = id => document.getElementById(id);
   const msg = t => { if ($('checkout-msg')) $('checkout-msg').textContent = t; };
 
-  const API_BASE  = "https://YOUR-PROJECT.vercel.app";      // <- your Vercel domain
-  const STRIPE_PK = "pk_test_YOUR_PUBLISHABLE_KEY";         // <- Stripe test publishable key
-  const CURRENCY  = 'usd';                                  // must match the Stripe price
+  const API_BASE  = "https://grc-report-access.vercel.app".replace(/\/$/, '');
+  const STRIPE_PK = "pk_test_51QgwjxGL6M8eL6LJRL0m38bnYqgJTYfk1stTz9HpcsHiRPYUwvdwIl9o1Z6t8c1uWcsOgHLbwsqLdOwg5CnyZHfE00w3KlKFWc";
+  const CURRENCY  = 'usd';
   const PLANS = {
-    monthly: { price: 'price_1TrZO4GL6M8eL6LJIDd36JoP', amount: 0 /* TODO cents, e.g. 1500 */ },
-    yearly:  { price: 'price_1Ts56pGL6M8eL6LJuhmz4Cgd', amount: 0 /* TODO cents, e.g. 15000 */ }
+    monthly: { price: 'price_1TrZO4GL6M8eL6LJIDd36JoP', amount: 2900 },
+    yearly:  { price: 'price_1Ts56pGL6M8eL6LJuhmz4Cgd', amount: 27800 }
   };
 
   if (!window.sb) return msg('Supabase not loaded — is the site-wide code on this page?');
-  if (!(await window.sb.auth.getSession()).data.session) return msg('Please sign in before subscribing.');
 
   const stripe = Stripe(STRIPE_PK);
   const cards = [...document.querySelectorAll('[data-plan]')];
@@ -47,7 +45,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   express.mount('#express-checkout');
   elements.create('payment').mount('#payment-element');
 
-  // Reveal the card form on demand.
   $('pay-another-way').addEventListener('click', (e) => {
     e.preventDefault();
     $('payment-element').style.display = 'block';
@@ -55,7 +52,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     e.target.style.display = 'none';
   });
 
-  // Plan selection updates the total shown in the wallet sheet.
   cards.forEach(card => card.addEventListener('click', () => {
     const plan = PLANS[card.dataset.plan];
     if (!plan) return;
@@ -65,13 +61,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     elements.update({ amount: selected.amount });
   }));
 
+  // Create the account if needed (email confirmation OFF -> immediate session).
+  async function ensureAccount() {
+    let session = (await window.sb.auth.getSession()).data.session;
+    if (session) return session;
+    const email = ($('su-email')?.value || '').trim();
+    const password = $('su-password')?.value || '';
+    if (!email || !password) { msg('Enter your email and password first.'); return null; }
+    let r = await window.sb.auth.signUp({
+      email, password,
+      options: { data: { first_name: $('su-first')?.value.trim(), last_name: $('su-last')?.value.trim() } }
+    });
+    if (r.error) r = await window.sb.auth.signInWithPassword({ email, password }); // maybe already registered
+    if (r.error) { msg(r.error.message); return null; }
+    return r.data.session;
+  }
+
   async function subscribe() {
     msg('Processing…');
-    const { error: submitError } = await elements.submit();
+    const { error: submitError } = await elements.submit();   // validate payment details first
     if (submitError) return msg(submitError.message);
 
-    const { data: { session } } = await window.sb.auth.getSession();  // fresh token
-    if (!session) return msg('Please sign in before subscribing.');
+    const session = await ensureAccount();
+    if (!session) return;   // ensureAccount already set the message
 
     const res = await fetch(API_BASE + '/api/create-subscription', {
       method: 'POST',
