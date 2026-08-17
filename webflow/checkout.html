@@ -1,72 +1,119 @@
-<!-- SIGN-UP + CHECKOUT (single embed, two-step, v2) — paste into ONE Embed on
-     /access/sign-up. Replaces the separate styling embed AND the checkout embed.
+<!-- SIGN-UP + CHECKOUT — self-contained two-step accordion (v2 flow).
+     Paste into ONE Embed on /access/sign-up. This renders the WHOLE form itself,
+     so remove any manually-built field elements from the page (avoid duplicate IDs).
 
-     Order of operations: Next only validates + checks email availability.
-     The Supabase account is created AFTER a successful payment (no orphaned
-     accounts). Works for card AND Apple Pay (both use the step-1 email/password).
+     Flow: step 1 validates + checks email availability on Next, collapses to a
+     summary, opens step 2. The Supabase account is created only AFTER a successful
+     payment. Works for card and Apple Pay (both use the step-1 email/password).
 
-     Webflow elements this expects:
-       inputs:   #su-first  #su-last  #su-email  #su-password   (class .signup-input)
-       terms:    #su-terms   (checkbox, class .terms-checkbox)
-       toggle:   an element with class .password-toggle (Show/Hide)
-       next:     #su-next    ("Next" / "Continue")
-     Plan cards (optional): add data-plan="monthly" / data-plan="yearly".
-     FILL IN: API_BASE, STRIPE_PK, plan amounts (cents). -->
+     FILL IN: API_BASE, STRIPE_PK, plan prices/amounts.
+     Reuses your classes: .signup-input .access-btn .terms-checkbox .password-toggle -->
 
 <style>
-.signup-input {
-  height: 3rem;
-  width: 100%;
-  padding: 14px 16px !important;
-  border: 1px solid #E0E0E0 !important;
-  border-radius: 8px !important;
-  font-size: 16px !important;
-  font-family: inherit;
-  outline: none;
-  margin-bottom: 12px;
-  box-sizing: border-box;
-}
-.signup-input:focus { border-color: #333 !important; }
-.password-wrapper { position: relative; margin-bottom: 12px; }
-.password-wrapper .signup-input { padding-right: 60px !important; margin-bottom: 0; }
-.password-toggle {
-  position: absolute; right: 16px; top: 50%; transform: translateY(-50%);
-  cursor: pointer; font-size: 14px; color: #666; user-select: none;
-}
-.password-toggle:hover { color: #333; }
-.terms-checkbox {
-  -webkit-appearance: none; appearance: none;
-  width: 18px; height: 18px; border: 1px solid #E0E0E0; border-radius: 4px;
-  cursor: pointer; flex-shrink: 0; position: relative; background: white;
-}
-.terms-checkbox:checked { background-color: #E8503A; border-color: #E8503A; }
-.terms-checkbox:checked::after {
-  content: ''; position: absolute; left: 5px; top: 2px; width: 5px; height: 9px;
-  border: solid white; border-width: 0 2px 2px 0; transform: rotate(45deg);
-}
-/* invalid field highlight */
-.input-error { border-color: #E8503A !important; }
-#checkout-msg.is-error { color: #E8503A; }
-/* Subscribe button reset — visual identity comes from .access-btn */
-#pay-btn { padding: 14px 20px; width: 100%; color: #fff; border: none; cursor: pointer; }
+.acc { max-width: 480px; }
+.acc-head-row { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:16px; }
+.acc-head-row h2 { font-size:22px; font-weight:700; margin:0; }
+.acc-login { font-size:14px; color:#E8503A; text-decoration:none; }
+
+.acc-step { border:1px solid #E0E0E0; border-radius:12px; margin-bottom:12px; overflow:hidden; }
+.acc-step.is-locked { opacity:.45; }
+.acc-step.is-locked .acc-head { cursor:not-allowed; }
+.acc-head { display:flex; align-items:center; gap:12px; padding:16px; cursor:pointer; }
+.acc-num { width:24px; height:24px; border-radius:50%; background:#E8503A; color:#fff;
+  display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:600; flex-shrink:0; }
+.acc-step.is-done .acc-num { background:#2E7D32; }
+.acc-step.is-done .acc-num::after { content:'✓'; }
+.acc-step.is-done .acc-num span { display:none; }
+.acc-title { font-weight:600; font-size:15px; }
+.acc-summary { font-size:13px; color:#666; margin-top:2px; display:none; }
+.acc-step.is-done .acc-summary { display:block; }
+.acc-body { padding:0 16px 18px; }
+
+.signup-input { height:3rem; width:100%; padding:14px 16px !important; border:1px solid #E0E0E0 !important;
+  border-radius:8px !important; font-size:16px !important; font-family:inherit; outline:none;
+  margin-bottom:12px; box-sizing:border-box; }
+.signup-input:focus { border-color:#333 !important; }
+.password-wrapper { position:relative; margin-bottom:12px; }
+.password-wrapper .signup-input { padding-right:60px !important; margin-bottom:0; }
+.password-toggle { position:absolute; right:16px; top:50%; transform:translateY(-50%);
+  cursor:pointer; font-size:14px; color:#666; user-select:none; }
+.password-toggle:hover { color:#333; }
+.terms-row { display:flex; align-items:center; gap:8px; font-size:14px; margin:4px 0 14px; }
+.terms-checkbox { -webkit-appearance:none; appearance:none; width:18px; height:18px; border:1px solid #E0E0E0;
+  border-radius:4px; cursor:pointer; flex-shrink:0; position:relative; background:white; }
+.terms-checkbox:checked { background-color:#E8503A; border-color:#E8503A; }
+.terms-checkbox:checked::after { content:''; position:absolute; left:5px; top:2px; width:5px; height:9px;
+  border:solid white; border-width:0 2px 2px 0; transform:rotate(45deg); }
+
+.plan-row { display:flex; gap:8px; margin-bottom:14px; }
+.plan-opt { flex:1; border:1px solid #E0E0E0; border-radius:8px; padding:12px; cursor:pointer; font-size:14px; }
+.plan-opt.is-selected { border-color:#E8503A; box-shadow:0 0 0 1px #E8503A inset; }
+.plan-save { color:#2E7D32; font-size:12px; }
+
+.access-btn { width:100%; padding:14px 20px; color:#fff; border:none; border-radius:12px;
+  background-color:#E8503A; font-size:15px; font-weight:500; cursor:pointer; margin-top:8px; }
+.access-btn[disabled] { opacity:.6; cursor:default; }
+#pay-another-way { display:inline-block; margin:12px 0; font-size:14px; }
+.input-error { border-color:#E8503A !important; }
+#checkout-msg { margin-top:12px; font:14px/1.4 inherit; }
+#checkout-msg.is-error { color:#E8503A; }
 </style>
 
-<div id="checkout-step" style="display:none;margin-top:16px;">
-  <div id="express-checkout"></div>
-  <a href="#" id="pay-another-way" style="display:inline-block;margin-top:12px;">Pay with card</a>
-  <div id="payment-element" style="display:none;margin-top:16px;"></div>
-  <button id="pay-btn" type="button" class="access-btn" style="display:none;margin-top:12px;">Subscribe</button>
+<div class="acc">
+  <div class="acc-head-row">
+    <h2>Sign up</h2>
+    <a class="acc-login" href="/access/sign-in">Already a member? Log in</a>
+  </div>
+
+  <!-- Step 1 -->
+  <div class="acc-step" id="step1">
+    <div class="acc-head" id="step1-head">
+      <span class="acc-num"><span>1</span></span>
+      <div>
+        <div class="acc-title">Personal information</div>
+        <div class="acc-summary" id="step1-summary"></div>
+      </div>
+    </div>
+    <div class="acc-body" id="step1-body">
+      <input id="su-email" class="signup-input" type="email" placeholder="Email" autocomplete="email">
+      <input id="su-first" class="signup-input" placeholder="First name" autocomplete="given-name">
+      <input id="su-last"  class="signup-input" placeholder="Last name" autocomplete="family-name">
+      <div class="password-wrapper">
+        <input id="su-password" class="signup-input" type="password" placeholder="Password" autocomplete="new-password">
+        <span class="password-toggle">Show</span>
+      </div>
+      <label class="terms-row"><input id="su-terms" type="checkbox" class="terms-checkbox"> I agree to the terms</label>
+      <button id="su-next" type="button" class="access-btn">Next</button>
+    </div>
+  </div>
+
+  <!-- Step 2 -->
+  <div class="acc-step is-locked" id="step2">
+    <div class="acc-head" id="step2-head">
+      <span class="acc-num"><span>2</span></span>
+      <div class="acc-title">Payment</div>
+    </div>
+    <div class="acc-body" id="step2-body" style="display:none;">
+      <div class="plan-row">
+        <div class="plan-opt is-selected" data-plan="monthly">Monthly · $29</div>
+        <div class="plan-opt" data-plan="yearly">Yearly · $278 <span class="plan-save">save 20%</span></div>
+      </div>
+      <div id="express-checkout"></div>
+      <a href="#" id="pay-another-way">Pay with card</a>
+      <div id="payment-element" style="display:none;"></div>
+      <button id="pay-btn" type="button" class="access-btn" style="display:none;">Subscribe</button>
+    </div>
+  </div>
+
+  <div id="checkout-msg"></div>
 </div>
-<div id="checkout-msg" style="margin-top:12px;font:14px/1.4 sans-serif;"></div>
 
 <script src="https://js.stripe.com/v3/"></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
   const $ = id => document.getElementById(id);
-  const msg = (t, isError) => {
-    const m = $('checkout-msg'); if (!m) return;
-    m.textContent = t; m.classList.toggle('is-error', !!isError);
-  };
+  const msg = (t, isError) => { const m = $('checkout-msg'); if (!m) return;
+    m.textContent = t || ''; m.classList.toggle('is-error', !!isError); };
 
   const API_BASE  = "https://grc-report-access.vercel.app".replace(/\/$/, '');
   const STRIPE_PK = "pk_test_51QgwjxGL6M8eL6LJRL0m38bnYqgJTYfk1stTz9HpcsHiRPYUwvdwIl9o1Z6t8c1uWcsOgHLbwsqLdOwg5CnyZHfE00w3KlKFWc";
@@ -77,71 +124,59 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   if (!window.sb) return msg('Supabase not loaded — is the site-wide code on this page?', true);
-  $('su-password')?.closest('form')?.addEventListener('submit', (e) => e.preventDefault());
 
-  // Password show/hide toggle.
+  // Password show/hide.
   document.querySelector('.password-toggle')?.addEventListener('click', function () {
-    const input = $('su-password'); if (!input) return;
-    const hidden = input.type === 'password';
-    input.type = hidden ? 'text' : 'password';
-    this.textContent = hidden ? 'Hide' : 'Show';
+    const i = $('su-password'); const hidden = i.type === 'password';
+    i.type = hidden ? 'text' : 'password'; this.textContent = hidden ? 'Hide' : 'Show';
   });
 
-  // Clear the red highlight as soon as the user fixes a field.
   const mark = (el, bad) => el && el.classList.toggle('input-error', bad);
   ['su-first', 'su-last', 'su-email', 'su-password'].forEach(id =>
     $(id)?.addEventListener('input', () => mark($(id), false)));
   $('su-terms')?.addEventListener('change', () => mark($('su-terms'), false));
 
   async function validateAccount() {
-    const first = $('su-first'), last = $('su-last'), email = $('su-email'),
+    const email = $('su-email'), first = $('su-first'), last = $('su-last'),
           pass = $('su-password'), terms = $('su-terms');
     let ok = true, message = '';
-    [first, last, email, pass].forEach(el => {
-      const empty = !el || !el.value.trim();
-      mark(el, empty);
-      if (empty) ok = false;
-    });
-    if (email?.value.trim() && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.value.trim())) {
-      mark(email, true); ok = false; message ||= 'Enter a valid email address.';
-    }
-    if (pass?.value && pass.value.length < 8) {
-      mark(pass, true); ok = false; message ||= 'Password must be at least 8 characters.';
-    }
-    if (terms && !terms.checked) {
-      mark(terms, true); ok = false; message ||= 'Please accept the terms to continue.';
-    }
+    [first, last, email, pass].forEach(el => { const empty = !el.value.trim(); mark(el, empty); if (empty) ok = false; });
+    if (email.value.trim() && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.value.trim())) { mark(email, true); ok = false; message ||= 'Enter a valid email address.'; }
+    if (pass.value && pass.value.length < 8) { mark(pass, true); ok = false; message ||= 'Password must be at least 8 characters.'; }
+    if (!terms.checked) { mark(terms, true); ok = false; message ||= 'Please accept the terms to continue.'; }
     if (!ok) { msg(message || 'Please fill in all required fields.', true); return false; }
-
-    // Email availability (reliable, checks auth.users via RPC) — before payment.
     const { data: exists, error } = await window.sb.rpc('email_exists', { e: email.value.trim() });
     if (error) { msg('Could not verify email, please try again.', true); return false; }
     if (exists) { mark(email, true); msg('This email is already registered — log in instead.', true); return false; }
     return true;
   }
 
-  // ---- Step 1: validate only, then reveal checkout (NO account yet) ----
-  async function goToCheckout() {
-    const btn = $('su-next'); if (btn) btn.disabled = true;
-    try {
-      if (!(await validateAccount())) return;
-      msg('');
-      $('checkout-step').style.display = 'block';
-      if (btn) btn.style.display = 'none';
-      initCheckout();   // mount Stripe now that the container is visible
-    } finally { if (btn) btn.disabled = false; }
+  // ---- accordion ----
+  function openStep2() {
+    $('step1').classList.add('is-done');
+    $('step1-body').style.display = 'none';
+    $('step1-summary').textContent = $('su-email').value.trim();
+    $('step2').classList.remove('is-locked');
+    $('step2-body').style.display = 'block';
+    initCheckout();
   }
-  $('su-next')?.addEventListener('click', (e) => { e.preventDefault(); goToCheckout(); });
+  function openStep1() {
+    $('step1').classList.remove('is-done');
+    $('step1-body').style.display = 'block';
+  }
+  $('su-next').addEventListener('click', async () => {
+    const b = $('su-next'); b.disabled = true;
+    try { if (await validateAccount()) { msg(''); openStep2(); } }
+    finally { b.disabled = false; }
+  });
+  $('step1-head').addEventListener('click', () => { if ($('step1').classList.contains('is-done')) openStep1(); });
 
-  // ---- Step 2: checkout (init once) ----
-  let started = false;
+  // ---- checkout (init once) ----
+  let started = false, elements, stripe, selected = PLANS.monthly;
   function initCheckout() {
     if (started) return; started = true;
-    const stripe = Stripe(STRIPE_PK);
-    const cards = [...document.querySelectorAll('[data-plan]')];
-    let selected = PLANS[cards[0]?.dataset.plan] || PLANS.monthly;
-
-    const elements = stripe.elements({ mode: 'subscription', amount: selected.amount, currency: CURRENCY });
+    stripe = Stripe(STRIPE_PK);
+    elements = stripe.elements({ mode: 'subscription', amount: selected.amount, currency: CURRENCY });
     const express = elements.create('expressCheckout', {
       buttonTheme: { applePay: 'black' }, buttonHeight: 48,
       paymentMethods: { applePay: 'auto', googlePay: 'auto', link: 'never', paypal: 'never', amazonPay: 'never' }
@@ -149,78 +184,62 @@ document.addEventListener('DOMContentLoaded', () => {
     express.mount('#express-checkout');
     elements.create('payment').mount('#payment-element');
 
-    const showCard = () => {
-      $('payment-element').style.display = 'block';
-      $('pay-btn').style.display = 'inline-block';
-      $('pay-another-way').style.display = 'none';
-    };
-
-    // No Apple Pay / Google Pay on this device -> show the card form straight away.
+    const showCard = () => { $('payment-element').style.display = 'block';
+      $('pay-btn').style.display = 'block'; $('pay-another-way').style.display = 'none'; };
     express.on('ready', (e) => {
       const m = e.availablePaymentMethods;
-      const hasWallet = m && Object.values(m).some(Boolean);
-      if (!hasWallet) { $('express-checkout').style.display = 'none'; showCard(); }
+      if (!(m && Object.values(m).some(Boolean))) { $('express-checkout').style.display = 'none'; showCard(); }
     });
     $('pay-another-way').addEventListener('click', (e) => { e.preventDefault(); showCard(); });
 
-    cards.forEach(card => card.addEventListener('click', () => {
-      const plan = PLANS[card.dataset.plan];
-      if (!plan) return;
+    document.querySelectorAll('.plan-opt').forEach(opt => opt.addEventListener('click', () => {
+      const plan = PLANS[opt.dataset.plan]; if (!plan) return;
       selected = plan;
-      cards.forEach(c => c.classList.remove('is-selected'));
-      card.classList.add('is-selected');
+      document.querySelectorAll('.plan-opt').forEach(o => o.classList.remove('is-selected'));
+      opt.classList.add('is-selected');
       elements.update({ amount: selected.amount });
     }));
 
-    async function subscribe() {
-      msg('Processing…');
-      const btn = $('pay-btn'); if (btn) btn.disabled = true;
-      const done = () => { if (btn) btn.disabled = false; };
-
-      const { error: submitError } = await elements.submit();
-      if (submitError) { msg(submitError.message, true); return done(); }
-
-      const email = $('su-email').value.trim();
-      const password = $('su-password').value;
-      const first = $('su-first')?.value.trim();
-      const last  = $('su-last')?.value.trim();
-
-      // 1. Stripe customer + incomplete subscription (no account yet).
-      const res = await fetch(API_BASE + '/api/create-subscription', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email, firstName: first, lastName: last, priceId: selected.price })
-      });
-      const data = await res.json();
-      if (!res.ok) { msg(data.error || 'Could not start checkout.', true); return done(); }
-
-      // 2. Confirm payment. redirect:'if_required' keeps us here to create the
-      //    account after success (Apple Pay uses the step-1 email, not the wallet's).
-      const { error: payError } = await stripe.confirmPayment({
-        elements,
-        clientSecret: data.clientSecret,
-        redirect: 'if_required',
-        confirmParams: { return_url: window.location.origin + '/dashboard/home' }
-      });
-      if (payError) { msg(payError.message, true); return done(); }
-
-      // 3. Payment OK -> create the Supabase account now (email confirmation OFF).
-      const { error: signErr } = await window.sb.auth.signUp({
-        email, password, options: { data: { first_name: first, last_name: last } }
-      });
-      if (signErr) {
-        console.error('signUp after successful payment failed:', signErr);
-        msg('Payment succeeded but we could not create your account (' + signErr.message +
-            '). You have been charged — please contact support with your email.', true);
-        return done();
-      }
-
-      // 4. Done — the new-user trigger links the subscription by email.
-      window.location.href = '/dashboard/home';
-    }
-
     express.on('confirm', subscribe);
     $('pay-btn').addEventListener('click', subscribe);
+  }
+
+  async function subscribe() {
+    msg('Processing…');
+    const btn = $('pay-btn'); if (btn) btn.disabled = true;
+    const done = () => { if (btn) btn.disabled = false; };
+
+    const { error: submitError } = await elements.submit();
+    if (submitError) { msg(submitError.message, true); return done(); }
+
+    const email = $('su-email').value.trim();
+    const password = $('su-password').value;
+    const first = $('su-first').value.trim();
+    const last  = $('su-last').value.trim();
+
+    const res = await fetch(API_BASE + '/api/create-subscription', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email, firstName: first, lastName: last, priceId: selected.price })
+    });
+    const data = await res.json();
+    if (!res.ok) { msg(data.error || 'Could not start checkout.', true); return done(); }
+
+    const { error: payError } = await stripe.confirmPayment({
+      elements, clientSecret: data.clientSecret, redirect: 'if_required',
+      confirmParams: { return_url: window.location.origin + '/dashboard/home' }
+    });
+    if (payError) { msg(payError.message, true); return done(); }
+
+    const { error: signErr } = await window.sb.auth.signUp({
+      email, password, options: { data: { first_name: first, last_name: last } }
+    });
+    if (signErr) {
+      console.error('signUp after payment failed:', signErr);
+      msg('Payment succeeded but we could not create your account (' + signErr.message +
+          '). You have been charged — please contact support.', true);
+      return done();
+    }
+    window.location.href = '/dashboard/home';
   }
 });
 </script>
