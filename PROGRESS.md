@@ -41,17 +41,20 @@ and [README.md](README.md) for setup.
   method domains (test mode), setting the test publishable key, publishing, and
   opening in Safari. Does NOT charge yet.
 
-## Phase 2 — Payments (in progress)
-- Server ✅: [api/create-subscription.js](api/create-subscription.js) (incomplete
-  subscription → client secret, CORS for the Webflow origin) and
-  [api/stripe-webhook.js](api/stripe-webhook.js) (only writer of `subscriptions`).
-  Shared helpers + CORS in [api/_lib.js](api/_lib.js).
-- Frontend ✅: [webflow/checkout.html](webflow/checkout.html) — Express Checkout
-  (black Apple Pay) + card fallback + plan cards, confirms the client secret.
-  Needs: Vercel domain, publishable key, and the two plan amounts filled in.
-- Webhook verified in Stripe (test event → 200).
-- Left to verify: a real test-card subscription end-to-end (row lands in
-  `subscriptions` with the right `user_id`).
+## Phase 2 — Payments (v2 flow: account created AFTER payment)
+- DB: [db/03_subscriptions_v2.sql](db/03_subscriptions_v2.sql) — subscriptions now
+  keyed by `email` + `stripe_customer_id` (webhook can write before the user
+  exists); `user_id` linked by email via the new-user trigger. Adds
+  `email_exists()` RPC for the signup email check.
+- Server: [api/create-subscription.js](api/create-subscription.js) takes
+  `{email, firstName, lastName, priceId}` (no JWT — user doesn't exist yet);
+  [api/stripe-webhook.js](api/stripe-webhook.js) writes email + customer, links
+  user_id by email.
+- Frontend: [webflow/checkout.html](webflow/checkout.html) — two-step accordion,
+  step-1 validation + email availability, create account only after payment
+  succeeds. **Card path first**; Apple Pay (Express Checkout) added after the
+  card path is verified.
+- Superseded: `webflow/sign-up.html`, `webflow/checkout-test.html`.
 
 ## Not started
 - **Phase 3 — Gating:** CMS `preview`/`full_body` split, `/api/article`, dashboard

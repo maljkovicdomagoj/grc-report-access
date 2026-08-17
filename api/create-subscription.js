@@ -1,8 +1,8 @@
-// POST /api/create-subscription  { priceId }  (Authorization: Bearer <supabase jwt>)
-// Creates an incomplete subscription and returns the client secret to confirm on
-// the frontend. The webhook is what actually writes to the subscriptions table.
-// Web Standard handler (method exports) so `request` is a real Web Request.
-import { stripe, supabaseAdmin, getUser, json, corsHeaders } from './_lib.js';
+// POST /api/create-subscription  { email, firstName, lastName, priceId }
+// No auth — the Supabase user does not exist yet (it's created after payment).
+// Creates/reuses the Stripe customer + an incomplete subscription, returns the
+// client secret to confirm on the frontend. The webhook writes the subscriptions row.
+import { stripe, json, corsHeaders } from './_lib.js';
 
 export function OPTIONS(request) {
   return new Response(null, { status: 204, headers: corsHeaders(request) });
@@ -10,40 +10,23 @@ export function OPTIONS(request) {
 
 export async function POST(request) {
   const cors = corsHeaders(request);
+  const { email, firstName, lastName, priceId } = await request.json().catch(() => ({}));
+  if (!email || !priceId) return json({ error: 'missing_fields' }, 400, cors);
 
-  const user = await getUser(request);
-  if (!user) return json({ error: 'unauthorized' }, 401, cors);
-
-  const { priceId } = await request.json().catch(() => ({}));
-  if (!priceId) return json({ error: 'missing_priceId' }, 400, cors);
-
-  // Ensure a profile row exists (the trigger normally creates it, but accounts
-  // made before the trigger have none — without it the subscriptions FK fails).
-  await supabaseAdmin.from('profiles')
-    .upsert({ id: user.id, email: user.email }, { onConflict: 'id', ignoreDuplicates: true });
-
-  // Reuse the customer stored on the profile, or create one and cache it.
-  const { data: profile } = await supabaseAdmin
-    .from('profiles').select('stripe_customer_id').eq('id', user.id).maybeSingle();
-
-  let customerId = profile?.stripe_customer_id;
-  if (!customerId) {
-    const customer = await stripe.customers.create({
-      email: user.email,
-      metadata: { user_id: user.id }
-    });
-    customerId = customer.id;
-    await supabaseAdmin.from('profiles')
-      .update({ stripe_customer_id: customerId }).eq('id', user.id);
-  }
+  // Reuse an existing customer for this email, else create one.
+  const existing = await stripe.customers.list({ email, limit: 1 });
+  const customer = existing.data[0] || await stripe.customers.create({
+    email,
+    name: [firstName, lastName].filter(Boolean).join(' ') || undefined
+  });
 
   const sub = await stripe.subscriptions.create({
-    customer: customerId,
+    customer: customer.id,
     items: [{ price: priceId }],
     payment_behavior: 'default_incomplete',
     payment_settings: { save_default_payment_method: 'on_subscription' },
     expand: ['latest_invoice.confirmation_secret'],
-    metadata: { user_id: user.id }   // webhook links the subscription back to the user
+    metadata: { email }    // webhook stores this; user_id is linked later by email
   });
 
   const clientSecret = sub.latest_invoice?.confirmation_secret?.client_secret;

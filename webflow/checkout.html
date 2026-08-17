@@ -1,207 +1,171 @@
-<!-- SIGN-UP + CHECKOUT (single embed, two-step) — paste into ONE Embed on
-     /access/sign-up. Replaces the separate styling embed AND the checkout embed.
+<!-- SIGN-UP + CHECKOUT (two-step accordion, CARD PATH) — paste into an Embed at
+     the bottom of /access/sign-up (or Page Settings → Before </body>).
+     No styling here — build the layout in Webflow and give elements these IDs:
 
-     Webflow elements this expects:
-       inputs:   #su-first  #su-last  #su-email  #su-password   (class .signup-input)
-       terms:    #su-terms   (checkbox, class .terms-checkbox)
-       toggle:   an element with class .password-toggle (Show/Hide)
-       next:     #su-next    ("Next" / "Continue")
-     Step 2 (below) is revealed after Next once the account is created
-     (email confirmation must be OFF so signUp returns a session).
+     Step 1 (personal info)
+       #step1          section wrapper
+       #step1-header   clickable header (click = go back to edit)
+       #step1-body     the fields wrapper
+       #step1-summary  text element shown when collapsed (filled with the email)
+       #su-email #su-first #su-last #su-password   inputs
+       #err-email #err-first #err-last #err-password   inline error text elements
+       #su-next        Next button
+     Step 2 (payment)
+       #step2          section wrapper (style .is-locked = greyed/disabled)
+       #step2-header   clickable header
+       #step2-body     wrapper
+       #payment-element   empty div (Stripe mounts the card form here)
+       #pay-btn        Subscribe button
+       #checkout-msg   status/error text element
+     Plan term toggle (optional)
+       [data-term="month"]  [data-term="year"]   elements (click to switch)
 
-     FILL IN: API_BASE, STRIPE_PK, plan amounts (cents).
-     Plan cards (optional): add data-plan="monthly" / data-plan="yearly". -->
-
-<style>
-.signup-input {
-  height: 3rem;
-  width: 100%;
-  padding: 14px 16px !important;
-  border: 1px solid #E0E0E0 !important;
-  border-radius: 8px !important;
-  font-size: 16px !important;
-  font-family: inherit;
-  outline: none;
-  margin-bottom: 12px;
-  box-sizing: border-box;
-}
-.signup-input:focus { border-color: #333 !important; }
-.password-wrapper { position: relative; margin-bottom: 12px; }
-.password-wrapper .signup-input { padding-right: 60px !important; margin-bottom: 0; }
-.password-toggle {
-  position: absolute; right: 16px; top: 50%; transform: translateY(-50%);
-  cursor: pointer; font-size: 14px; color: #666; user-select: none;
-}
-.password-toggle:hover { color: #333; }
-.terms-checkbox {
-  -webkit-appearance: none; appearance: none;
-  width: 18px; height: 18px; border: 1px solid #E0E0E0; border-radius: 4px;
-  cursor: pointer; flex-shrink: 0; position: relative; background: white;
-}
-.terms-checkbox:checked { background-color: #E8503A; border-color: #E8503A; }
-.terms-checkbox:checked::after {
-  content: ''; position: absolute; left: 5px; top: 2px; width: 5px; height: 9px;
-  border: solid white; border-width: 0 2px 2px 0; transform: rotate(45deg);
-}
-/* invalid field highlight */
-.input-error { border-color: #E8503A !important; }
-#checkout-msg.is-error { color: #E8503A; }
-/* Subscribe button reset — visual identity comes from .access-btn */
-#pay-btn { padding: 14px 20px; width: 100%; color: #fff; border: none; cursor: pointer; }
-</style>
-
-<div id="checkout-step" style="display:none;margin-top:16px;">
-  <div id="express-checkout"></div>
-  <a href="#" id="pay-another-way" style="display:inline-block;margin-top:12px;">Pay with card</a>
-  <div id="payment-element" style="display:none;margin-top:16px;"></div>
-  <button id="pay-btn" type="button" class="access-btn" style="display:none;margin-top:12px;">Subscribe</button>
-</div>
-<div id="checkout-msg" style="margin-top:12px;font:14px/1.4 sans-serif;"></div>
+     FILL IN: API_BASE, STRIPE_PK, plan prices/amounts. Order of operations:
+     validate + email check on Next; create the account only AFTER payment. -->
 
 <script src="https://js.stripe.com/v3/"></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
   const $ = id => document.getElementById(id);
-  const msg = (t, isError) => {
-    const m = $('checkout-msg'); if (!m) return;
-    m.textContent = t; m.classList.toggle('is-error', !!isError);
-  };
 
   const API_BASE  = "https://grc-report-access.vercel.app".replace(/\/$/, '');
   const STRIPE_PK = "pk_test_51QgwjxGL6M8eL6LJRL0m38bnYqgJTYfk1stTz9HpcsHiRPYUwvdwIl9o1Z6t8c1uWcsOgHLbwsqLdOwg5CnyZHfE00w3KlKFWc";
   const CURRENCY  = 'usd';
   const PLANS = {
-    monthly: { price: 'price_1TrZO4GL6M8eL6LJIDd36JoP', amount: 2900 },
-    yearly:  { price: 'price_1Ts56pGL6M8eL6LJuhmz4Cgd', amount: 27800 }
+    month: { price: 'price_1TrZO4GL6M8eL6LJIDd36JoP', amount: 2900,  label: '$29/month' },
+    year:  { price: 'price_1Ts56pGL6M8eL6LJuhmz4Cgd', amount: 27800, label: '$278/year' }
   };
 
-  if (!window.sb) return msg('Supabase not loaded — is the site-wide code on this page?', true);
-  $('su-password')?.closest('form')?.addEventListener('submit', (e) => e.preventDefault());
+  if (!window.sb) { console.error('Supabase (site-wide code) not loaded'); return; }
 
-  // Password show/hide toggle.
-  document.querySelector('.password-toggle')?.addEventListener('click', function () {
-    const input = $('su-password'); if (!input) return;
-    const hidden = input.type === 'password';
-    input.type = hidden ? 'text' : 'password';
-    this.textContent = hidden ? 'Hide' : 'Show';
+  // ---------- plan term (?term=month|year) ----------
+  let term = new URLSearchParams(location.search).get('term');
+  if (!PLANS[term]) term = 'month';
+  let elements;   // set in initCheckout
+  function selectTerm(t) {
+    if (!PLANS[t]) return;
+    term = t;
+    document.querySelectorAll('[data-term]').forEach(el =>
+      el.classList.toggle('is-selected', el.dataset.term === t));
+    if ($('pay-btn')) $('pay-btn').textContent = 'Subscribe · ' + PLANS[t].label;
+    if (elements) elements.update({ amount: PLANS[t].amount });
+  }
+  document.querySelectorAll('[data-term]').forEach(el =>
+    el.addEventListener('click', () => selectTerm(el.dataset.term)));
+  selectTerm(term);
+
+  // ---------- step 1 validation ----------
+  const FIELDS = ['email', 'first', 'last', 'password'];
+  const showErr = (f, text) => {
+    const e = $('err-' + f); if (!e) return;
+    e.textContent = text || ''; e.style.display = text ? 'block' : 'none';
+  };
+  FIELDS.forEach(f => $('su-' + f)?.addEventListener('input', () => showErr(f, '')));
+
+  async function validateStep1() {
+    FIELDS.forEach(f => showErr(f, ''));
+    const email = ($('su-email')?.value || '').trim();
+    const first = ($('su-first')?.value || '').trim();
+    const last  = ($('su-last')?.value || '').trim();
+    const pass  = $('su-password')?.value || '';
+    let ok = true;
+    if (!first) { showErr('first', 'Enter your first name.'); ok = false; }
+    if (!last)  { showErr('last', 'Enter your last name.'); ok = false; }
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { showErr('email', 'Enter a valid email address.'); ok = false; }
+    if (pass.length < 8) { showErr('password', 'Password must be at least 8 characters.'); ok = false; }
+    if (!ok) return false;
+    // email availability (reliable, checks auth.users via RPC)
+    const { data: exists, error } = await window.sb.rpc('email_exists', { e: email });
+    if (error) { showErr('email', 'Could not verify email, please try again.'); return false; }
+    if (exists) { showErr('email', 'This email is already registered — log in instead.'); return false; }
+    return true;
+  }
+
+  // ---------- accordion ----------
+  function openStep2() {
+    if ($('step1-body')) $('step1-body').style.display = 'none';
+    if ($('step2-body')) $('step2-body').style.display = 'block';
+    $('step1')?.classList.add('is-collapsed');
+    $('step2')?.classList.remove('is-locked');
+    if ($('step1-summary')) {
+      $('step1-summary').textContent = ($('su-email')?.value || '').trim();
+      $('step1-summary').style.display = 'block';
+    }
+    initCheckout();
+  }
+  function openStep1() {
+    if ($('step2-body')) $('step2-body').style.display = 'none';
+    if ($('step1-body')) $('step1-body').style.display = 'block';
+    $('step1')?.classList.remove('is-collapsed');
+  }
+  $('su-next')?.addEventListener('click', async (e) => {
+    e.preventDefault();
+    const btn = $('su-next'); btn.disabled = true;
+    try { if (await validateStep1()) openStep2(); }
+    finally { btn.disabled = false; }
+  });
+  $('step1-header')?.addEventListener('click', openStep1);            // go back and edit
+  $('step2-header')?.addEventListener('click', () => {                // locked until step 1 passes
+    if (!$('step2')?.classList.contains('is-locked')) openStep2();
   });
 
-  // Clear the red highlight as soon as the user fixes a field.
-  const mark = (el, bad) => el && el.classList.toggle('input-error', bad);
-  ['su-first', 'su-last', 'su-email', 'su-password'].forEach(id =>
-    $(id)?.addEventListener('input', () => mark($(id), false)));
-  $('su-terms')?.addEventListener('change', () => mark($('su-terms'), false));
-
-  function validateAccount() {
-    const first = $('su-first'), last = $('su-last'), email = $('su-email'),
-          pass = $('su-password'), terms = $('su-terms');
-    let ok = true, message = '';
-    [first, last, email, pass].forEach(el => {
-      const empty = !el || !el.value.trim();
-      mark(el, empty);
-      if (empty) ok = false;
-    });
-    if (email?.value.trim() && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.value.trim())) {
-      mark(email, true); ok = false; message ||= 'Enter a valid email address.';
-    }
-    if (pass?.value && pass.value.length < 6) {
-      mark(pass, true); ok = false; message ||= 'Password must be at least 6 characters.';
-    }
-    if (terms && !terms.checked) {
-      mark(terms, true); ok = false; message ||= 'Please accept the terms to continue.';
-    }
-    if (!ok) msg(message || 'Please fill in all required fields.', true);
-    return ok;
-  }
-
-  // ---- Step 1: validate + create the account, then reveal checkout ----
-  async function goToCheckout() {
-    if (!validateAccount()) return;
-    let session = (await window.sb.auth.getSession()).data.session;
-    if (!session) {
-      const email = $('su-email').value.trim();
-      const password = $('su-password').value;
-      let r = await window.sb.auth.signUp({
-        email, password,
-        options: { data: { first_name: $('su-first')?.value.trim(), last_name: $('su-last')?.value.trim() } }
-      });
-      if (r.error) r = await window.sb.auth.signInWithPassword({ email, password }); // maybe already registered
-      if (r.error) { mark($('su-email'), true); return msg(r.error.message, true); }
-      session = r.data.session;
-    }
-    if (!session) return msg('Could not create your account.', true);
-    msg('');
-    $('checkout-step').style.display = 'block';
-    if ($('su-next')) $('su-next').style.display = 'none';
-    initCheckout();   // mount Stripe now that the container is visible
-  }
-  $('su-next')?.addEventListener('click', (e) => { e.preventDefault(); goToCheckout(); });
-
-  // ---- Step 2: checkout (init once) ----
-  let started = false;
+  // ---------- step 2: checkout (card path) ----------
+  let stripe, started = false;
   function initCheckout() {
     if (started) return; started = true;
-    const stripe = Stripe(STRIPE_PK);
-    const cards = [...document.querySelectorAll('[data-plan]')];
-    let selected = PLANS[cards[0]?.dataset.plan] || PLANS.monthly;
-
-    const elements = stripe.elements({ mode: 'subscription', amount: selected.amount, currency: CURRENCY });
-    const express = elements.create('expressCheckout', {
-      buttonTheme: { applePay: 'black' }, buttonHeight: 48,
-      paymentMethods: { applePay: 'auto', googlePay: 'auto', link: 'never', paypal: 'never', amazonPay: 'never' }
-    });
-    express.mount('#express-checkout');
+    stripe = Stripe(STRIPE_PK);
+    elements = stripe.elements({ mode: 'subscription', amount: PLANS[term].amount, currency: CURRENCY });
     elements.create('payment').mount('#payment-element');
+    if ($('pay-btn')) $('pay-btn').textContent = 'Subscribe · ' + PLANS[term].label;
+    $('pay-btn')?.addEventListener('click', subscribe);
+  }
 
-    const showCard = () => {
-      $('payment-element').style.display = 'block';
-      $('pay-btn').style.display = 'inline-block';
-      $('pay-another-way').style.display = 'none';
-    };
+  async function subscribe() {
+    const msg = t => { if ($('checkout-msg')) $('checkout-msg').textContent = t || ''; };
+    const btn = $('pay-btn'); if (btn) btn.disabled = true;
+    const done = () => { if (btn) btn.disabled = false; };
+    msg('Processing…');
 
-    // No Apple Pay / Google Pay on this device -> show the card form straight away.
-    express.on('ready', (e) => {
-      const m = e.availablePaymentMethods;
-      const hasWallet = m && Object.values(m).some(Boolean);
-      if (!hasWallet) { $('express-checkout').style.display = 'none'; showCard(); }
+    const { error: submitError } = await elements.submit();
+    if (submitError) { msg(submitError.message); return done(); }
+
+    const email = ($('su-email')?.value || '').trim();
+    const password = $('su-password')?.value || '';
+    const first = ($('su-first')?.value || '').trim();
+    const last  = ($('su-last')?.value || '').trim();
+
+    // 1. Stripe customer + incomplete subscription
+    const res = await fetch(API_BASE + '/api/create-subscription', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email, firstName: first, lastName: last, priceId: PLANS[term].price })
     });
-    $('pay-another-way').addEventListener('click', (e) => { e.preventDefault(); showCard(); });
+    const data = await res.json();
+    if (!res.ok) { msg(data.error || 'Could not start checkout.'); return done(); }
 
-    cards.forEach(card => card.addEventListener('click', () => {
-      const plan = PLANS[card.dataset.plan];
-      if (!plan) return;
-      selected = plan;
-      cards.forEach(c => c.classList.remove('is-selected'));
-      card.classList.add('is-selected');
-      elements.update({ amount: selected.amount });
-    }));
+    // 2. Confirm payment. redirect:'if_required' so we stay on the page to create
+    //    the account after success (test cards don't 3-D Secure).
+    const { error: payError } = await stripe.confirmPayment({
+      elements,
+      clientSecret: data.clientSecret,
+      redirect: 'if_required',
+      confirmParams: { return_url: window.location.origin + '/dashboard/home' }
+    });
+    if (payError) { msg(payError.message); return done(); }
 
-    async function subscribe() {
-      msg('Processing…');
-      const { error: submitError } = await elements.submit();
-      if (submitError) return msg(submitError.message, true);
-
-      const { data: { session } } = await window.sb.auth.getSession();
-      if (!session) return msg('Please sign in.', true);
-
-      const res = await fetch(API_BASE + '/api/create-subscription', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', authorization: 'Bearer ' + session.access_token },
-        body: JSON.stringify({ priceId: selected.price })
-      });
-      const data = await res.json();
-      if (!res.ok) return msg(data.error || 'Could not start checkout.', true);
-
-      const { error } = await stripe.confirmPayment({
-        elements,
-        clientSecret: data.clientSecret,
-        confirmParams: { return_url: window.location.origin + '/dashboard/home' }
-      });
-      if (error) msg(error.message, true);   // on success the browser redirects to return_url
+    // 3. Payment succeeded -> create the Supabase account now (email confirmation OFF).
+    const { error: signErr } = await window.sb.auth.signUp({
+      email, password, options: { data: { first_name: first, last_name: last } }
+    });
+    if (signErr) {
+      console.error('signUp after successful payment failed:', signErr);
+      msg('Payment succeeded but we could not create your account (' + signErr.message +
+          '). You have been charged — please contact support with your email.');
+      return done();
     }
 
-    express.on('confirm', subscribe);
-    $('pay-btn').addEventListener('click', subscribe);
+    // 4. Done — trigger links the subscription to the new user by email.
+    window.location.href = '/dashboard/home';
   }
 });
 </script>
