@@ -73,6 +73,8 @@
 .input-error { border-color:#E8503A !important; }
 .field-err { color:#E8503A; font-size:13px; margin:-6px 0 10px; display:none; }
 #su-next { display:block; width:fit-content; margin-left:auto; padding:10px 28px; background-color:#111; }
+#su-next:hover { box-shadow:none; }
+#pay-btn { padding-top:10px; padding-bottom:10px; }
 #checkout-msg { margin-top:12px; font:14px/1.4 inherit; }
 #checkout-msg.is-error { color:#E8503A; }
 </style>
@@ -124,7 +126,7 @@
           <div class="plan-price">$29<span>/month</span></div>
         </div>
         <div class="plan-opt" data-plan="yearly">
-          <span class="plan-save">save 20%</span>
+          <span class="plan-save">Save 20%</span>
           <div class="plan-name">Annual</div>
           <div class="plan-price">$23<span>/month</span></div>
         </div>
@@ -275,7 +277,7 @@ document.addEventListener('DOMContentLoaded', () => {
     msg('Processing…');
 
     const { error: submitError } = await elements.submit();
-    if (submitError) { msg(submitError.message, true); return done(); }
+    if (submitError) { msg(''); return done(); }   // Stripe shows the field error inline already
 
     const email = $('su-email').value.trim();
     const password = $('su-password').value;
