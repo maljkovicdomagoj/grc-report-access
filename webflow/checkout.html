@@ -23,7 +23,7 @@
   cursor:pointer; font-size:14px; color:#666; user-select:none; }
 .password-toggle:hover { color:#333; }
 .terms-row { display:flex; align-items:center; gap:8px; font-size:14px; margin:4px 0 14px; font-weight:400; }
-.terms-link { font-weight:700; color:inherit; }
+.terms-link { font-weight:700; color:inherit; text-decoration:none; }
 .terms-checkbox { -webkit-appearance:none; appearance:none; width:18px; height:18px; border:1px solid #E0E0E0;
   border-radius:4px; cursor:pointer; flex-shrink:0; position:relative; background:white; }
 .terms-checkbox:checked { background-color:#E8503A; border-color:#E8503A; }
@@ -92,10 +92,9 @@
     <span class="password-toggle">Show</span>
   </div>
   <div class="field-err" id="err-password"></div>
-  <label class="terms-row"><input id="su-terms" type="checkbox" class="terms-checkbox"> <span>I agree to the <a class="terms-link" href="https://grcreport.com/terms-of-service" target="_blank" rel="noopener">terms</a></span></label>
+  <label class="terms-row"><input id="su-terms" type="checkbox" class="terms-checkbox"> <span>I agree to the <a class="terms-link" href="https://grcreport.com/terms-of-service" target="_blank" rel="noopener">Terms</a> and <a class="terms-link" href="https://www.grcreport.com/privacy-policy" target="_blank" rel="noopener">Privacy Policy</a></span></label>
   <div class="field-err" id="err-terms"></div>
 
-  <div class="section-label">Payment</div>
   <div id="express-checkout"></div>
   <a href="#" id="pay-another-way">Pay with card</a>
   <div id="payment-element" style="display:none;"></div>
