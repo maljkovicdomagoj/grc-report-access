@@ -10,7 +10,7 @@
      Reuses your classes: .signup-input .access-btn .terms-checkbox .password-toggle -->
 
 <style>
-.acc { max-width: 480px; }
+.acc { width: 100%; max-width: 480px; margin: 0 auto; }
 .acc-head-row { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:16px; }
 .acc-head-row h2 { font-size:22px; font-weight:700; margin:0; }
 .acc-login { font-size:14px; color:#E8503A; text-decoration:none; }
@@ -25,6 +25,12 @@
 .acc-step.is-done .acc-num::after { content:'✓'; }
 .acc-step.is-done .acc-num span { display:none; }
 .acc-title { font-weight:600; font-size:15px; }
+.acc-chevron { margin-left:auto; width:9px; height:9px; border-right:2px solid #999;
+  border-bottom:2px solid #999; transition:transform .2s; }
+#step1 .acc-chevron { transform: rotate(225deg); }                 /* open */
+#step1.is-done .acc-chevron { transform: rotate(45deg); }          /* collapsed */
+#step2 .acc-chevron { transform: rotate(45deg); }                  /* closed/locked */
+#step2:not(.is-locked) .acc-chevron { transform: rotate(225deg); } /* open */
 .acc-summary { font-size:13px; color:#666; margin-top:2px; display:none; }
 .acc-step.is-done .acc-summary { display:block; }
 .acc-body { padding:0 16px 18px; }
@@ -53,7 +59,10 @@
 .access-btn { width:100%; padding:14px 20px; color:#fff; border:none; border-radius:12px;
   background-color:#E8503A; font-size:15px; font-weight:500; cursor:pointer; margin-top:8px; }
 .access-btn[disabled] { opacity:.6; cursor:default; }
-#pay-another-way { display:inline-block; margin:12px 0; font-size:14px; }
+#pay-another-way { display:block; width:100%; height:48px; line-height:48px; text-align:center;
+  background:#f0f0f0; color:#333; border-radius:8px; text-decoration:none; font-size:15px;
+  font-weight:500; margin:12px 0; cursor:pointer; }
+#pay-another-way:hover { background:#e6e6e6; }
 .input-error { border-color:#E8503A !important; }
 #checkout-msg { margin-top:12px; font:14px/1.4 inherit; }
 #checkout-msg.is-error { color:#E8503A; }
@@ -73,6 +82,7 @@
         <div class="acc-title">Personal information</div>
         <div class="acc-summary" id="step1-summary"></div>
       </div>
+      <span class="acc-chevron"></span>
     </div>
     <div class="acc-body" id="step1-body">
       <input id="su-email" class="signup-input" type="email" placeholder="Email" autocomplete="email">
@@ -92,6 +102,7 @@
     <div class="acc-head" id="step2-head">
       <span class="acc-num"><span>2</span></span>
       <div class="acc-title">Payment</div>
+      <span class="acc-chevron"></span>
     </div>
     <div class="acc-body" id="step2-body" style="display:none;">
       <div class="plan-row">
