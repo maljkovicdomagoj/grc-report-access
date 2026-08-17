@@ -200,35 +200,37 @@ document.addEventListener('DOMContentLoaded', () => {
     return true;
   }
 
-  // ---- accordion (single step open at a time) ----
+  // ---- accordion (each step toggles independently; both can be open) ----
   let step1Done = false;
-  function showStep1() {   // step 1 open, step 2 collapsed
-    $('step1').classList.remove('is-done'); $('step1-body').style.display = 'block';
-    $('step2').classList.remove('is-open'); $('step2-body').style.display = 'none';
-  }
-  function showStep2() {   // step 1 collapsed to summary, step 2 open
-    step1Done = true;
+  function collapseStep1() {
     $('step1').classList.add('is-done'); $('step1-body').style.display = 'none';
     $('step1-summary').textContent = $('su-email').value.trim();
+  }
+  function expandStep1() {
+    $('step1').classList.remove('is-done'); $('step1-body').style.display = 'block';
+  }
+  function openStep2() {
+    step1Done = true;
     $('step2').classList.remove('is-locked'); $('step2').classList.add('is-open');
     $('step2-body').style.display = 'block';
     initCheckout();
   }
-  function expandStep1() { showStep1(); }   // used by subscribe() on re-validate failure
+  function collapseStep2() {
+    $('step2').classList.remove('is-open'); $('step2-body').style.display = 'none';
+  }
 
   $('su-next').addEventListener('click', async () => {
     const b = $('su-next'); b.disabled = true;
-    try { if (await validateAccount()) { msg(''); showStep2(); } }
+    try { if (await validateAccount()) { msg(''); collapseStep1(); openStep2(); } }
     finally { b.disabled = false; }
   });
-  // Headers toggle between the two steps once step 1 has been completed.
   $('step1-head').addEventListener('click', () => {
     if (!step1Done) return;
-    $('step1').classList.contains('is-done') ? showStep1() : showStep2();
+    $('step1').classList.contains('is-done') ? expandStep1() : collapseStep1();
   });
   $('step2-head').addEventListener('click', () => {
     if ($('step2').classList.contains('is-locked')) return;
-    $('step2').classList.contains('is-open') ? showStep1() : showStep2();
+    $('step2').classList.contains('is-open') ? collapseStep2() : openStep2();
   });
 
   // ---- checkout (init once) ----
