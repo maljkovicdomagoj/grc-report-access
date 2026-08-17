@@ -165,24 +165,33 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ---- accordion ----
-  function openStep2() {
+  let step1Done = false;
+  function collapseStep1() {
     $('step1').classList.add('is-done');
     $('step1-body').style.display = 'none';
     $('step1-summary').textContent = $('su-email').value.trim();
+  }
+  function expandStep1() {
+    $('step1').classList.remove('is-done');
+    $('step1-body').style.display = 'block';
+  }
+  function openStep2() {
+    step1Done = true;
+    collapseStep1();
     $('step2').classList.remove('is-locked');
     $('step2-body').style.display = 'block';
     initCheckout();
-  }
-  function openStep1() {
-    $('step1').classList.remove('is-done');
-    $('step1-body').style.display = 'block';
   }
   $('su-next').addEventListener('click', async () => {
     const b = $('su-next'); b.disabled = true;
     try { if (await validateAccount()) { msg(''); openStep2(); } }
     finally { b.disabled = false; }
   });
-  $('step1-head').addEventListener('click', () => { if ($('step1').classList.contains('is-done')) openStep1(); });
+  // Once step 1 is completed, its header toggles it open/closed.
+  $('step1-head').addEventListener('click', () => {
+    if (!step1Done) return;
+    if ($('step1').classList.contains('is-done')) expandStep1(); else collapseStep1();
+  });
 
   // ---- checkout (init once) ----
   let started = false, elements, stripe, selected = PLANS.monthly;
@@ -218,9 +227,12 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function subscribe() {
-    msg('Processing…');
     const btn = $('pay-btn'); if (btn) btn.disabled = true;
     const done = () => { if (btn) btn.disabled = false; };
+
+    // Re-validate step 1 (email may have been edited after reopening) before charging.
+    if (!(await validateAccount())) { expandStep1(); return done(); }
+    msg('Processing…');
 
     const { error: submitError } = await elements.submit();
     if (submitError) { msg(submitError.message, true); return done(); }
