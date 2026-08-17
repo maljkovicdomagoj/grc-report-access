@@ -1,12 +1,15 @@
 // POST /api/create-subscription  { priceId }  (Authorization: Bearer <supabase jwt>)
 // Creates an incomplete subscription and returns the client secret to confirm on
 // the frontend. The webhook is what actually writes to the subscriptions table.
+// Web Standard handler (method exports) so `request` is a real Web Request.
 import { stripe, supabaseAdmin, getUser, json, corsHeaders } from './_lib.js';
 
-export default async function handler(request) {
+export function OPTIONS(request) {
+  return new Response(null, { status: 204, headers: corsHeaders(request) });
+}
+
+export async function POST(request) {
   const cors = corsHeaders(request);
-  if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
-  if (request.method !== 'POST') return json({ error: 'method_not_allowed' }, 405, cors);
 
   const user = await getUser(request);
   if (!user) return json({ error: 'unauthorized' }, 401, cors);

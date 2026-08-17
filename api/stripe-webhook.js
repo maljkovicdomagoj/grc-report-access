@@ -15,7 +15,7 @@ function subToRow(sub) {
   };
 }
 
-export default async function handler(request) {
+export async function POST(request) {
   const raw = await request.text();
   const sig = request.headers.get('stripe-signature');
   let event;
