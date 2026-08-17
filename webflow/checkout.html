@@ -1,14 +1,52 @@
-<!-- SIGN-UP + CHECKOUT (two-step) — paste into an Embed on /access/sign-up,
-     below your account form.
+<!-- SIGN-UP + CHECKOUT (single embed, two-step) — paste into ONE Embed on
+     /access/sign-up. Replaces the separate styling embed AND the checkout embed.
 
-     Step 1 (Webflow): your account fields + a Next button.
-       inputs:  #su-first  #su-last  #su-email  #su-password
-       button:  #su-next   ("Next" / "Continue")
-     Step 2 (this embed): revealed after Next, once the account is created
-       (email confirmation must be OFF so signUp returns a session).
+     Webflow elements this expects:
+       inputs:   #su-first  #su-last  #su-email  #su-password   (class .signup-input)
+       terms:    #su-terms   (checkbox, class .terms-checkbox)
+       toggle:   an element with class .password-toggle (Show/Hide)
+       next:     #su-next    ("Next" / "Continue")
+     Step 2 (below) is revealed after Next once the account is created
+     (email confirmation must be OFF so signUp returns a session).
 
-     FILL IN: API_BASE, STRIPE_PK, and each plan amount in cents.
+     FILL IN: API_BASE, STRIPE_PK, plan amounts (cents).
      Plan cards (optional): add data-plan="monthly" / data-plan="yearly". -->
+
+<style>
+.signup-input {
+  height: 3rem;
+  width: 100%;
+  padding: 14px 16px !important;
+  border: 1px solid #E0E0E0 !important;
+  border-radius: 8px !important;
+  font-size: 16px !important;
+  font-family: inherit;
+  outline: none;
+  margin-bottom: 12px;
+  box-sizing: border-box;
+}
+.signup-input:focus { border-color: #333 !important; }
+.password-wrapper { position: relative; margin-bottom: 12px; }
+.password-wrapper .signup-input { padding-right: 60px !important; margin-bottom: 0; }
+.password-toggle {
+  position: absolute; right: 16px; top: 50%; transform: translateY(-50%);
+  cursor: pointer; font-size: 14px; color: #666; user-select: none;
+}
+.password-toggle:hover { color: #333; }
+.terms-checkbox {
+  -webkit-appearance: none; appearance: none;
+  width: 18px; height: 18px; border: 1px solid #E0E0E0; border-radius: 4px;
+  cursor: pointer; flex-shrink: 0; position: relative; background: white;
+}
+.terms-checkbox:checked { background-color: #E8503A; border-color: #E8503A; }
+.terms-checkbox:checked::after {
+  content: ''; position: absolute; left: 5px; top: 2px; width: 5px; height: 9px;
+  border: solid white; border-width: 0 2px 2px 0; transform: rotate(45deg);
+}
+/* invalid field highlight */
+.input-error { border-color: #E8503A !important; }
+#checkout-msg.is-error { color: #E8503A; }
+</style>
 
 <div id="checkout-step" style="display:none;margin-top:16px;">
   <div id="express-checkout"></div>
@@ -22,7 +60,10 @@
 <script>
 document.addEventListener('DOMContentLoaded', () => {
   const $ = id => document.getElementById(id);
-  const msg = t => { if ($('checkout-msg')) $('checkout-msg').textContent = t; };
+  const msg = (t, isError) => {
+    const m = $('checkout-msg'); if (!m) return;
+    m.textContent = t; m.classList.toggle('is-error', !!isError);
+  };
 
   const API_BASE  = "https://grc-report-access.vercel.app".replace(/\/$/, '');
   const STRIPE_PK = "pk_test_51QgwjxGL6M8eL6LJRL0m38bnYqgJTYfk1stTz9HpcsHiRPYUwvdwIl9o1Z6t8c1uWcsOgHLbwsqLdOwg5CnyZHfE00w3KlKFWc";
@@ -32,25 +73,61 @@ document.addEventListener('DOMContentLoaded', () => {
     yearly:  { price: 'price_1Ts56pGL6M8eL6LJuhmz4Cgd', amount: 27800 }
   };
 
-  if (!window.sb) return msg('Supabase not loaded — is the site-wide code on this page?');
+  if (!window.sb) return msg('Supabase not loaded — is the site-wide code on this page?', true);
   $('su-password')?.closest('form')?.addEventListener('submit', (e) => e.preventDefault());
 
-  // ---- Step 1: create the account, then reveal checkout ----
+  // Password show/hide toggle.
+  document.querySelector('.password-toggle')?.addEventListener('click', function () {
+    const input = $('su-password'); if (!input) return;
+    const hidden = input.type === 'password';
+    input.type = hidden ? 'text' : 'password';
+    this.textContent = hidden ? 'Hide' : 'Show';
+  });
+
+  // Clear the red highlight as soon as the user fixes a field.
+  const mark = (el, bad) => el && el.classList.toggle('input-error', bad);
+  ['su-first', 'su-last', 'su-email', 'su-password'].forEach(id =>
+    $(id)?.addEventListener('input', () => mark($(id), false)));
+  $('su-terms')?.addEventListener('change', () => mark($('su-terms'), false));
+
+  function validateAccount() {
+    const first = $('su-first'), last = $('su-last'), email = $('su-email'),
+          pass = $('su-password'), terms = $('su-terms');
+    let ok = true, message = '';
+    [first, last, email, pass].forEach(el => {
+      const empty = !el || !el.value.trim();
+      mark(el, empty);
+      if (empty) ok = false;
+    });
+    if (email?.value.trim() && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.value.trim())) {
+      mark(email, true); ok = false; message ||= 'Enter a valid email address.';
+    }
+    if (pass?.value && pass.value.length < 6) {
+      mark(pass, true); ok = false; message ||= 'Password must be at least 6 characters.';
+    }
+    if (terms && !terms.checked) {
+      mark(terms, true); ok = false; message ||= 'Please accept the terms to continue.';
+    }
+    if (!ok) msg(message || 'Please fill in all required fields.', true);
+    return ok;
+  }
+
+  // ---- Step 1: validate + create the account, then reveal checkout ----
   async function goToCheckout() {
+    if (!validateAccount()) return;
     let session = (await window.sb.auth.getSession()).data.session;
     if (!session) {
-      const email = ($('su-email')?.value || '').trim();
-      const password = $('su-password')?.value || '';
-      if (!email || !password) return msg('Enter your email and password first.');
+      const email = $('su-email').value.trim();
+      const password = $('su-password').value;
       let r = await window.sb.auth.signUp({
         email, password,
         options: { data: { first_name: $('su-first')?.value.trim(), last_name: $('su-last')?.value.trim() } }
       });
       if (r.error) r = await window.sb.auth.signInWithPassword({ email, password }); // maybe already registered
-      if (r.error) return msg(r.error.message);
+      if (r.error) { mark($('su-email'), true); return msg(r.error.message, true); }
       session = r.data.session;
     }
-    if (!session) return msg('Could not create your account.');
+    if (!session) return msg('Could not create your account.', true);
     msg('');
     $('checkout-step').style.display = 'block';
     if ($('su-next')) $('su-next').style.display = 'none';
@@ -80,15 +157,12 @@ document.addEventListener('DOMContentLoaded', () => {
       $('pay-another-way').style.display = 'none';
     };
 
-    // No Apple Pay / Google Pay on this device -> skip the empty wallet area,
-    // show the card form straight away.
+    // No Apple Pay / Google Pay on this device -> show the card form straight away.
     express.on('ready', (e) => {
       const m = e.availablePaymentMethods;
       const hasWallet = m && Object.values(m).some(Boolean);
       if (!hasWallet) { $('express-checkout').style.display = 'none'; showCard(); }
     });
-
-    // Has a wallet but wants to pay by card anyway.
     $('pay-another-way').addEventListener('click', (e) => { e.preventDefault(); showCard(); });
 
     cards.forEach(card => card.addEventListener('click', () => {
@@ -103,10 +177,10 @@ document.addEventListener('DOMContentLoaded', () => {
     async function subscribe() {
       msg('Processing…');
       const { error: submitError } = await elements.submit();
-      if (submitError) return msg(submitError.message);
+      if (submitError) return msg(submitError.message, true);
 
       const { data: { session } } = await window.sb.auth.getSession();
-      if (!session) return msg('Please sign in.');
+      if (!session) return msg('Please sign in.', true);
 
       const res = await fetch(API_BASE + '/api/create-subscription', {
         method: 'POST',
@@ -114,14 +188,14 @@ document.addEventListener('DOMContentLoaded', () => {
         body: JSON.stringify({ priceId: selected.price })
       });
       const data = await res.json();
-      if (!res.ok) return msg(data.error || 'Could not start checkout.');
+      if (!res.ok) return msg(data.error || 'Could not start checkout.', true);
 
       const { error } = await stripe.confirmPayment({
         elements,
         clientSecret: data.clientSecret,
         confirmParams: { return_url: window.location.origin + '/dashboard/home' }
       });
-      if (error) msg(error.message);   // on success the browser redirects to return_url
+      if (error) msg(error.message, true);   // on success the browser redirects to return_url
     }
 
     express.on('confirm', subscribe);
