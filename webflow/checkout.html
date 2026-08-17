@@ -35,7 +35,8 @@
 #step2.is-open .acc-chevron { transform: rotate(225deg); }          /* open */
 .acc-summary { font-size:13px; color:#666; margin-top:2px; display:none; }
 .acc-step.is-done .acc-summary { display:block; }
-.acc-body { padding:0 16px 18px; animation: accIn .25s ease; }
+.acc-body { padding:0 16px 18px; }
+.accanim { animation: accIn .22s ease; }
 
 .signup-input { height:3rem; width:100%; padding:14px 16px !important; border:1px solid #E0E0E0 !important;
   border-radius:8px !important; font-size:16px !important; font-family:inherit; outline:none;
@@ -204,17 +205,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ---- accordion (each step toggles independently; both can be open) ----
   let step1Done = false;
+  // Show a body and (re)play the open animation, even on repeat toggles.
+  function reveal(el) {
+    el.style.display = 'block';
+    el.classList.remove('accanim'); void el.offsetWidth; el.classList.add('accanim');
+  }
   function collapseStep1() {
     $('step1').classList.add('is-done'); $('step1-body').style.display = 'none';
     $('step1-summary').textContent = $('su-email').value.trim();
   }
   function expandStep1() {
-    $('step1').classList.remove('is-done'); $('step1-body').style.display = 'block';
+    $('step1').classList.remove('is-done'); reveal($('step1-body'));
   }
   function openStep2() {
     step1Done = true;
     $('step2').classList.remove('is-locked'); $('step2').classList.add('is-open');
-    $('step2-body').style.display = 'block';
+    reveal($('step2-body'));
     initCheckout();
   }
   function collapseStep2() {
