@@ -46,7 +46,8 @@
 .password-toggle { position:absolute; right:16px; top:50%; transform:translateY(-50%);
   cursor:pointer; font-size:14px; color:#666; user-select:none; }
 .password-toggle:hover { color:#333; }
-.terms-row { display:flex; align-items:center; gap:8px; font-size:14px; margin:4px 0 14px; }
+.terms-row { display:flex; align-items:center; gap:8px; font-size:14px; margin:4px 0 14px; font-weight:400; }
+.terms-link { font-weight:700; color:inherit; }
 .terms-checkbox { -webkit-appearance:none; appearance:none; width:18px; height:18px; border:1px solid #E0E0E0;
   border-radius:4px; cursor:pointer; flex-shrink:0; position:relative; background:white; }
 .terms-checkbox:checked { background-color:#E8503A; border-color:#E8503A; }
@@ -79,7 +80,6 @@
 <div class="acc">
   <div class="acc-head-row">
     <h2>Sign up</h2>
-    <a class="acc-login" href="/access/sign-in">Already a member? Log in</a>
   </div>
 
   <!-- Step 1 -->
@@ -104,7 +104,7 @@
         <span class="password-toggle">Show</span>
       </div>
       <div class="field-err" id="err-password"></div>
-      <label class="terms-row"><input id="su-terms" type="checkbox" class="terms-checkbox"> I agree to the terms</label>
+      <label class="terms-row"><input id="su-terms" type="checkbox" class="terms-checkbox"> <span>I agree to the <a class="terms-link" href="https://grcreport.com/terms-of-service" target="_blank" rel="noopener">terms</a></span></label>
       <div class="field-err" id="err-terms"></div>
       <button id="su-next" type="button" class="access-btn" disabled>Next</button>
     </div>
