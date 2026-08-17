@@ -81,6 +81,14 @@
 .secure-note svg { flex-shrink:0; }
 #checkout-msg { margin-top:12px; font:14px/1.4 inherit; }
 #checkout-msg.is-error { color:#E8503A; }
+
+@media (max-width: 520px) {
+  .acc-head-row h2 { font-size:20px; }
+  .acc-head { padding:14px; gap:10px; }
+  .acc-body { padding:0 14px 16px; }
+  .plan-row { flex-direction:column; }          /* stack plans */
+  .signup-input { font-size:16px !important; }   /* keep 16px so iOS doesn't zoom */
+}
 </style>
 
 <div class="acc">
