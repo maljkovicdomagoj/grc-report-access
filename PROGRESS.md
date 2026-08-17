@@ -50,10 +50,9 @@ and [README.md](README.md) for setup.
   `{email, firstName, lastName, priceId}` (no JWT — user doesn't exist yet);
   [api/stripe-webhook.js](api/stripe-webhook.js) writes email + customer, links
   user_id by email.
-- Frontend: [webflow/checkout.html](webflow/checkout.html) — two-step accordion,
-  step-1 validation + email availability, create account only after payment
-  succeeds. **Card path first**; Apple Pay (Express Checkout) added after the
-  card path is verified.
+- Frontend: [webflow/checkout.html](webflow/checkout.html) — single-page form
+  (plan → details → pay), email validated on entry, Apple Pay + card, account
+  created only after payment succeeds.
 - Superseded: `webflow/sign-up.html`, `webflow/checkout-test.html`.
 
 ## Not started
