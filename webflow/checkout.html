@@ -1,23 +1,26 @@
-<!-- SIGN-UP + CHECKOUT (single page) — paste into an Embed on /access/sign-up,
-     BELOW your registration form. On pay we create the account (email confirmation
-     must be OFF so signUp returns a session), then charge — one click.
+<!-- SIGN-UP + CHECKOUT (two-step) — paste into an Embed on /access/sign-up,
+     below your account form.
 
-     The registration form must expose these input IDs (no separate signup button
-     needed on this page — this embed handles it):
-       #su-first  #su-last  #su-email  #su-password
+     Step 1 (Webflow): your account fields + a Next button.
+       inputs:  #su-first  #su-last  #su-email  #su-password
+       button:  #su-next   ("Next" / "Continue")
+     Step 2 (this embed): revealed after Next, once the account is created
+       (email confirmation must be OFF so signUp returns a session).
 
-     FILL IN below: API_BASE, STRIPE_PK, and each plan amount in cents.
+     FILL IN: API_BASE, STRIPE_PK, and each plan amount in cents.
      Plan cards (optional): add data-plan="monthly" / data-plan="yearly". -->
 
-<div id="express-checkout"></div>
-<a href="#" id="pay-another-way" style="display:inline-block;margin-top:12px;">Pay with card</a>
-<div id="payment-element" style="display:none;margin-top:16px;"></div>
-<button id="pay-btn" type="button" style="display:none;margin-top:12px;">Subscribe</button>
+<div id="checkout-step" style="display:none;margin-top:16px;">
+  <div id="express-checkout"></div>
+  <a href="#" id="pay-another-way" style="display:inline-block;margin-top:12px;">Pay with card</a>
+  <div id="payment-element" style="display:none;margin-top:16px;"></div>
+  <button id="pay-btn" type="button" style="display:none;margin-top:12px;">Subscribe</button>
+</div>
 <div id="checkout-msg" style="margin-top:12px;font:14px/1.4 sans-serif;"></div>
 
 <script src="https://js.stripe.com/v3/"></script>
 <script>
-document.addEventListener('DOMContentLoaded', async () => {
+document.addEventListener('DOMContentLoaded', () => {
   const $ = id => document.getElementById(id);
   const msg = t => { if ($('checkout-msg')) $('checkout-msg').textContent = t; };
 
@@ -30,83 +33,89 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
 
   if (!window.sb) return msg('Supabase not loaded — is the site-wide code on this page?');
-
-  // The Webflow registration form must never submit natively — it carries a
-  // password field, which the browser blocks ("Passwords cannot be submitted").
-  // We handle signup + payment entirely in JS.
   $('su-password')?.closest('form')?.addEventListener('submit', (e) => e.preventDefault());
 
-  const stripe = Stripe(STRIPE_PK);
-  const cards = [...document.querySelectorAll('[data-plan]')];
-  let selected = PLANS[cards[0]?.dataset.plan] || PLANS.monthly;
-
-  const elements = stripe.elements({ mode: 'subscription', amount: selected.amount, currency: CURRENCY });
-
-  const express = elements.create('expressCheckout', {
-    buttonTheme: { applePay: 'black' },
-    buttonHeight: 48,
-    paymentMethods: { applePay: 'auto', googlePay: 'auto', link: 'never', paypal: 'never', amazonPay: 'never' }
-  });
-  express.mount('#express-checkout');
-  elements.create('payment').mount('#payment-element');
-
-  $('pay-another-way').addEventListener('click', (e) => {
-    e.preventDefault();
-    $('payment-element').style.display = 'block';
-    $('pay-btn').style.display = 'inline-block';
-    e.target.style.display = 'none';
-  });
-
-  cards.forEach(card => card.addEventListener('click', () => {
-    const plan = PLANS[card.dataset.plan];
-    if (!plan) return;
-    selected = plan;
-    cards.forEach(c => c.classList.remove('is-selected'));
-    card.classList.add('is-selected');
-    elements.update({ amount: selected.amount });
-  }));
-
-  // Create the account if needed (email confirmation OFF -> immediate session).
-  async function ensureAccount() {
+  // ---- Step 1: create the account, then reveal checkout ----
+  async function goToCheckout() {
     let session = (await window.sb.auth.getSession()).data.session;
-    if (session) return session;
-    const email = ($('su-email')?.value || '').trim();
-    const password = $('su-password')?.value || '';
-    if (!email || !password) { msg('Enter your email and password first.'); return null; }
-    let r = await window.sb.auth.signUp({
-      email, password,
-      options: { data: { first_name: $('su-first')?.value.trim(), last_name: $('su-last')?.value.trim() } }
-    });
-    if (r.error) r = await window.sb.auth.signInWithPassword({ email, password }); // maybe already registered
-    if (r.error) { msg(r.error.message); return null; }
-    return r.data.session;
+    if (!session) {
+      const email = ($('su-email')?.value || '').trim();
+      const password = $('su-password')?.value || '';
+      if (!email || !password) return msg('Enter your email and password first.');
+      let r = await window.sb.auth.signUp({
+        email, password,
+        options: { data: { first_name: $('su-first')?.value.trim(), last_name: $('su-last')?.value.trim() } }
+      });
+      if (r.error) r = await window.sb.auth.signInWithPassword({ email, password }); // maybe already registered
+      if (r.error) return msg(r.error.message);
+      session = r.data.session;
+    }
+    if (!session) return msg('Could not create your account.');
+    msg('');
+    $('checkout-step').style.display = 'block';
+    if ($('su-next')) $('su-next').style.display = 'none';
+    initCheckout();   // mount Stripe now that the container is visible
   }
+  $('su-next')?.addEventListener('click', (e) => { e.preventDefault(); goToCheckout(); });
 
-  async function subscribe() {
-    msg('Processing…');
-    const { error: submitError } = await elements.submit();   // validate payment details first
-    if (submitError) return msg(submitError.message);
+  // ---- Step 2: checkout (init once) ----
+  let started = false;
+  function initCheckout() {
+    if (started) return; started = true;
+    const stripe = Stripe(STRIPE_PK);
+    const cards = [...document.querySelectorAll('[data-plan]')];
+    let selected = PLANS[cards[0]?.dataset.plan] || PLANS.monthly;
 
-    const session = await ensureAccount();
-    if (!session) return;   // ensureAccount already set the message
-
-    const res = await fetch(API_BASE + '/api/create-subscription', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: 'Bearer ' + session.access_token },
-      body: JSON.stringify({ priceId: selected.price })
+    const elements = stripe.elements({ mode: 'subscription', amount: selected.amount, currency: CURRENCY });
+    const express = elements.create('expressCheckout', {
+      buttonTheme: { applePay: 'black' }, buttonHeight: 48,
+      paymentMethods: { applePay: 'auto', googlePay: 'auto', link: 'never', paypal: 'never', amazonPay: 'never' }
     });
-    const data = await res.json();
-    if (!res.ok) return msg(data.error || 'Could not start checkout.');
+    express.mount('#express-checkout');
+    elements.create('payment').mount('#payment-element');
 
-    const { error } = await stripe.confirmPayment({
-      elements,
-      clientSecret: data.clientSecret,
-      confirmParams: { return_url: window.location.origin + '/dashboard/home' }
+    $('pay-another-way').addEventListener('click', (e) => {
+      e.preventDefault();
+      $('payment-element').style.display = 'block';
+      $('pay-btn').style.display = 'inline-block';
+      e.target.style.display = 'none';
     });
-    if (error) msg(error.message);   // on success the browser redirects to return_url
+
+    cards.forEach(card => card.addEventListener('click', () => {
+      const plan = PLANS[card.dataset.plan];
+      if (!plan) return;
+      selected = plan;
+      cards.forEach(c => c.classList.remove('is-selected'));
+      card.classList.add('is-selected');
+      elements.update({ amount: selected.amount });
+    }));
+
+    async function subscribe() {
+      msg('Processing…');
+      const { error: submitError } = await elements.submit();
+      if (submitError) return msg(submitError.message);
+
+      const { data: { session } } = await window.sb.auth.getSession();
+      if (!session) return msg('Please sign in.');
+
+      const res = await fetch(API_BASE + '/api/create-subscription', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: 'Bearer ' + session.access_token },
+        body: JSON.stringify({ priceId: selected.price })
+      });
+      const data = await res.json();
+      if (!res.ok) return msg(data.error || 'Could not start checkout.');
+
+      const { error } = await stripe.confirmPayment({
+        elements,
+        clientSecret: data.clientSecret,
+        confirmParams: { return_url: window.location.origin + '/dashboard/home' }
+      });
+      if (error) msg(error.message);   // on success the browser redirects to return_url
+    }
+
+    express.on('confirm', subscribe);
+    $('pay-btn').addEventListener('click', subscribe);
   }
-
-  express.on('confirm', subscribe);
-  $('pay-btn').addEventListener('click', subscribe);
 });
 </script>
