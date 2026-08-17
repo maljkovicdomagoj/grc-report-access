@@ -17,9 +17,14 @@ export async function POST(request) {
   const { priceId } = await request.json().catch(() => ({}));
   if (!priceId) return json({ error: 'missing_priceId' }, 400, cors);
 
+  // Ensure a profile row exists (the trigger normally creates it, but accounts
+  // made before the trigger have none — without it the subscriptions FK fails).
+  await supabaseAdmin.from('profiles')
+    .upsert({ id: user.id, email: user.email }, { onConflict: 'id', ignoreDuplicates: true });
+
   // Reuse the customer stored on the profile, or create one and cache it.
   const { data: profile } = await supabaseAdmin
-    .from('profiles').select('stripe_customer_id').eq('id', user.id).single();
+    .from('profiles').select('stripe_customer_id').eq('id', user.id).maybeSingle();
 
   let customerId = profile?.stripe_customer_id;
   if (!customerId) {
