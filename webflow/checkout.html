@@ -58,9 +58,13 @@
   border:solid white; border-width:0 2px 2px 0; transform:rotate(45deg); }
 
 .plan-row { display:flex; gap:8px; margin-bottom:14px; }
-.plan-opt { flex:1; border:1px solid #E0E0E0; border-radius:8px; padding:12px; cursor:pointer; font-size:14px; }
+.plan-opt { position:relative; flex:1; border:1px solid #E0E0E0; border-radius:8px; padding:12px; cursor:pointer; }
 .plan-opt.is-selected { border-color:#E8503A; box-shadow:0 0 0 1px #E8503A inset; }
-.plan-save { color:#2E7D32; font-size:12px; }
+.plan-name { font-weight:600; font-size:14px; }
+.plan-price { font-size:18px; font-weight:700; margin-top:2px; }
+.plan-price span { font-size:12px; font-weight:400; color:#666; }
+.plan-save { position:absolute; top:8px; right:8px; background:#2E7D32; color:#fff;
+  font-size:11px; font-weight:600; padding:2px 6px; border-radius:6px; }
 
 .access-btn { width:100%; padding:14px 20px; color:#fff; border:none; border-radius:12px;
   background-color:#E8503A; font-size:15px; font-weight:500; cursor:pointer; margin-top:8px; }
@@ -126,8 +130,15 @@
     </div>
     <div class="acc-body" id="step2-body" style="display:none;">
       <div class="plan-row">
-        <div class="plan-opt is-selected" data-plan="monthly">Monthly · $29</div>
-        <div class="plan-opt" data-plan="yearly">Yearly · $278 <span class="plan-save">save 20%</span></div>
+        <div class="plan-opt is-selected" data-plan="monthly">
+          <div class="plan-name">Monthly</div>
+          <div class="plan-price">$29<span>/month</span></div>
+        </div>
+        <div class="plan-opt" data-plan="yearly">
+          <span class="plan-save">save 20%</span>
+          <div class="plan-name">Annual</div>
+          <div class="plan-price">$23<span>/month</span></div>
+        </div>
       </div>
       <div id="express-checkout"></div>
       <a href="#" id="pay-another-way">Pay with card</a>
