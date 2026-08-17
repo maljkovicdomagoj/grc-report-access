@@ -76,6 +76,9 @@
 #su-next { display:block; width:fit-content; margin-left:auto; padding:10px 28px; background-color:#111; }
 #su-next:hover { box-shadow:none; }
 #pay-btn { padding-top:10px; padding-bottom:10px; }
+.secure-note { display:flex; align-items:center; justify-content:center; gap:6px;
+  margin-top:12px; font-size:13px; color:#888; }
+.secure-note svg { flex-shrink:0; }
 #checkout-msg { margin-top:12px; font:14px/1.4 inherit; }
 #checkout-msg.is-error { color:#E8503A; }
 </style>
@@ -136,6 +139,10 @@
       <a href="#" id="pay-another-way">Pay with card</a>
       <div id="payment-element" style="display:none;"></div>
       <button id="pay-btn" type="button" class="access-btn" style="display:none;">Subscribe</button>
+      <div class="secure-note">
+        <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2" fill="#888"/><path d="M8 11V8a4 4 0 0 1 8 0v3" fill="none" stroke="#888" stroke-width="2"/></svg>
+        Secure checkout — payments are processed by Stripe.
+      </div>
     </div>
   </div>
 
