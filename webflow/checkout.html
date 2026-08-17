@@ -46,13 +46,15 @@
 /* invalid field highlight */
 .input-error { border-color: #E8503A !important; }
 #checkout-msg.is-error { color: #E8503A; }
+/* Subscribe button reset — visual identity comes from .access-btn */
+#pay-btn { padding: 14px 20px; width: 100%; color: #fff; border: none; cursor: pointer; }
 </style>
 
 <div id="checkout-step" style="display:none;margin-top:16px;">
   <div id="express-checkout"></div>
   <a href="#" id="pay-another-way" style="display:inline-block;margin-top:12px;">Pay with card</a>
   <div id="payment-element" style="display:none;margin-top:16px;"></div>
-  <button id="pay-btn" type="button" style="display:none;margin-top:12px;">Subscribe</button>
+  <button id="pay-btn" type="button" class="access-btn" style="display:none;margin-top:12px;">Subscribe</button>
 </div>
 <div id="checkout-msg" style="margin-top:12px;font:14px/1.4 sans-serif;"></div>
 
