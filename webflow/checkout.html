@@ -31,14 +31,10 @@
   border-bottom:2px solid #999; transition:transform .25s ease; }
 #step1 .acc-chevron { transform: rotate(225deg); }                 /* open */
 #step1.is-done .acc-chevron { transform: rotate(45deg); }          /* collapsed */
-#step2 .acc-chevron { transform: rotate(45deg); margin-left:10px; }  /* closed/locked */
+#step2 .acc-chevron { transform: rotate(45deg); }                   /* closed/locked */
 #step2.is-open .acc-chevron { transform: rotate(225deg); }          /* open */
 .acc-summary { font-size:13px; color:#666; margin-top:2px; display:none; }
 .acc-step.is-done .acc-summary { display:block; }
-/* accepted-method icons — only while the Payment step is collapsed */
-.pay-icons { display:none; gap:6px; margin-left:auto; align-items:center; }
-#step2:not(.is-open) .pay-icons { display:flex; }
-.pay-icons img { height:22px; width:auto; display:block; }
 .acc-body { padding:0 16px 18px; animation: accIn .25s ease; }
 
 .signup-input { height:3rem; width:100%; padding:14px 16px !important; border:1px solid #E0E0E0 !important;
@@ -119,13 +115,6 @@
     <div class="acc-head" id="step2-head">
       <span class="acc-num"><span>2</span></span>
       <div class="acc-title">Payment</div>
-      <span class="pay-icons">
-        <img src="https://cdn.prod.website-files.com/63e17201c0e9876f45c22d5a/6a82e3b8f0b72042b4e5fb96_cc-apple-pay.svg" alt="Apple Pay">
-        <img src="https://cdn.prod.website-files.com/63e17201c0e9876f45c22d5a/6a82e3b95a890f1415c04e06_visa.svg" alt="Visa">
-        <img src="https://cdn.prod.website-files.com/63e17201c0e9876f45c22d5a/6a82e3b978c9282dc549c712_Mastercard-Logo.wine.png" alt="Mastercard">
-        <img src="https://cdn.prod.website-files.com/63e17201c0e9876f45c22d5a/6a82e3b9a94b4c3d5e61da45_diners.svg" alt="Diners Club">
-        <img src="https://cdn.prod.website-files.com/63e17201c0e9876f45c22d5a/6a82e3b9ff108633f1be8839_discover-card-logo-01.png" alt="Discover">
-      </span>
       <span class="acc-chevron"></span>
     </div>
     <div class="acc-body" id="step2-body" style="display:none;">
