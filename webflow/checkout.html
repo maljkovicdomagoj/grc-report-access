@@ -66,6 +66,8 @@
   font-weight:500; margin:12px 0; cursor:pointer; }
 #pay-another-way:hover { background:#e6e6e6; }
 .input-error { border-color:#E8503A !important; }
+.field-err { color:#E8503A; font-size:13px; margin:-6px 0 10px; display:none; }
+#su-next { width:auto; min-width:130px; }
 #checkout-msg { margin-top:12px; font:14px/1.4 inherit; }
 #checkout-msg.is-error { color:#E8503A; }
 </style>
@@ -88,14 +90,19 @@
     </div>
     <div class="acc-body" id="step1-body">
       <input id="su-email" class="signup-input" type="email" placeholder="Email" autocomplete="email">
+      <div class="field-err" id="err-email"></div>
       <input id="su-first" class="signup-input" placeholder="First name" autocomplete="given-name">
+      <div class="field-err" id="err-first"></div>
       <input id="su-last"  class="signup-input" placeholder="Last name" autocomplete="family-name">
+      <div class="field-err" id="err-last"></div>
       <div class="password-wrapper">
         <input id="su-password" class="signup-input" type="password" placeholder="Password" autocomplete="new-password">
         <span class="password-toggle">Show</span>
       </div>
+      <div class="field-err" id="err-password"></div>
       <label class="terms-row"><input id="su-terms" type="checkbox" class="terms-checkbox"> I agree to the terms</label>
-      <button id="su-next" type="button" class="access-btn">Next</button>
+      <div class="field-err" id="err-terms"></div>
+      <button id="su-next" type="button" class="access-btn" disabled>Next</button>
     </div>
   </div>
 
@@ -145,22 +152,40 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   const mark = (el, bad) => el && el.classList.toggle('input-error', bad);
+  const fieldErr = (name, text) => {
+    const e = $('err-' + name); if (!e) return;
+    e.textContent = text || ''; e.style.display = text ? 'block' : 'none';
+  };
+
+  // Enable Next only once every field is filled and terms accepted.
+  function refreshNext() {
+    const filled = ['su-first', 'su-last', 'su-email', 'su-password'].every(id => $(id).value.trim());
+    $('su-next').disabled = !(filled && $('su-terms').checked);
+  }
   ['su-first', 'su-last', 'su-email', 'su-password'].forEach(id =>
-    $(id)?.addEventListener('input', () => mark($(id), false)));
-  $('su-terms')?.addEventListener('change', () => mark($('su-terms'), false));
+    $(id)?.addEventListener('input', () => {
+      mark($(id), false); fieldErr(id.replace('su-', ''), ''); refreshNext();
+    }));
+  $('su-terms')?.addEventListener('change', () => { fieldErr('terms', ''); refreshNext(); });
+  refreshNext();
 
   async function validateAccount() {
-    const email = $('su-email'), first = $('su-first'), last = $('su-last'),
-          pass = $('su-password'), terms = $('su-terms');
-    let ok = true, message = '';
-    [first, last, email, pass].forEach(el => { const empty = !el.value.trim(); mark(el, empty); if (empty) ok = false; });
-    if (email.value.trim() && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.value.trim())) { mark(email, true); ok = false; message ||= 'Enter a valid email address.'; }
-    if (pass.value && pass.value.length < 8) { mark(pass, true); ok = false; message ||= 'Password must be at least 8 characters.'; }
-    if (!terms.checked) { mark(terms, true); ok = false; message ||= 'Please accept the terms to continue.'; }
-    if (!ok) { msg(message || 'Please fill in all required fields.', true); return false; }
-    const { data: exists, error } = await window.sb.rpc('email_exists', { e: email.value.trim() });
-    if (error) { msg('Could not verify email, please try again.', true); return false; }
-    if (exists) { mark(email, true); msg('This email is already registered — log in instead.', true); return false; }
+    const email = $('su-email').value.trim(), first = $('su-first').value.trim(),
+          last = $('su-last').value.trim(), pass = $('su-password').value, terms = $('su-terms').checked;
+    ['email', 'first', 'last', 'password', 'terms'].forEach(n => fieldErr(n, ''));
+    let ok = true;
+    if (!first) { fieldErr('first', 'Enter your first name.'); mark($('su-first'), true); ok = false; }
+    if (!last)  { fieldErr('last', 'Enter your last name.'); mark($('su-last'), true); ok = false; }
+    if (!email) { fieldErr('email', 'Enter your email.'); mark($('su-email'), true); ok = false; }
+    else if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { fieldErr('email', 'Enter a valid email address.'); mark($('su-email'), true); ok = false; }
+    if (!pass) { fieldErr('password', 'Enter a password.'); mark($('su-password'), true); ok = false; }
+    else if (pass.length < 8) { fieldErr('password', 'Password must be at least 8 characters.'); mark($('su-password'), true); ok = false; }
+    if (!terms) { fieldErr('terms', 'Please accept the terms to continue.'); ok = false; }
+    if (!ok) return false;
+
+    const { data: exists, error } = await window.sb.rpc('email_exists', { e: email });
+    if (error) { fieldErr('email', 'Could not verify email, please try again.'); return false; }
+    if (exists) { fieldErr('email', 'This email is already registered — log in instead.'); mark($('su-email'), true); return false; }
     return true;
   }
 
