@@ -12,7 +12,7 @@
 <div id="express-checkout"></div>
 <a href="#" id="pay-another-way" style="display:inline-block;margin-top:12px;">Pay with card</a>
 <div id="payment-element" style="display:none;margin-top:16px;"></div>
-<button id="pay-btn" style="display:none;margin-top:12px;">Subscribe</button>
+<button id="pay-btn" type="button" style="display:none;margin-top:12px;">Subscribe</button>
 <div id="checkout-msg" style="margin-top:12px;font:14px/1.4 sans-serif;"></div>
 
 <script src="https://js.stripe.com/v3/"></script>
@@ -30,6 +30,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
 
   if (!window.sb) return msg('Supabase not loaded — is the site-wide code on this page?');
+
+  // The Webflow registration form must never submit natively — it carries a
+  // password field, which the browser blocks ("Passwords cannot be submitted").
+  // We handle signup + payment entirely in JS.
+  $('su-password')?.closest('form')?.addEventListener('submit', (e) => e.preventDefault());
 
   const stripe = Stripe(STRIPE_PK);
   const cards = [...document.querySelectorAll('[data-plan]')];
