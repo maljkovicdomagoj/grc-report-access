@@ -74,12 +74,22 @@ document.addEventListener('DOMContentLoaded', () => {
     express.mount('#express-checkout');
     elements.create('payment').mount('#payment-element');
 
-    $('pay-another-way').addEventListener('click', (e) => {
-      e.preventDefault();
+    const showCard = () => {
       $('payment-element').style.display = 'block';
       $('pay-btn').style.display = 'inline-block';
-      e.target.style.display = 'none';
+      $('pay-another-way').style.display = 'none';
+    };
+
+    // No Apple Pay / Google Pay on this device -> skip the empty wallet area,
+    // show the card form straight away.
+    express.on('ready', (e) => {
+      const m = e.availablePaymentMethods;
+      const hasWallet = m && Object.values(m).some(Boolean);
+      if (!hasWallet) { $('express-checkout').style.display = 'none'; showCard(); }
     });
+
+    // Has a wallet but wants to pay by card anyway.
+    $('pay-another-way').addEventListener('click', (e) => { e.preventDefault(); showCard(); });
 
     cards.forEach(card => card.addEventListener('click', () => {
       const plan = PLANS[card.dataset.plan];
